@@ -13,7 +13,7 @@ jobs:
   build:
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install tools
         run: brew install xcodegen ldid
@@ -23,11 +23,30 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          TAG="${LLAMA_TAG:-$(gh api repos/ggml-org/llama.cpp/releases/latest --jq .tag_name)}"
-          echo "llama.cpp tag: $TAG"
           mkdir -p tmp/dl tmp/x Frameworks
-          gh release download "$TAG" --repo ggml-org/llama.cpp --pattern '*xcframework*.zip' --dir tmp/dl
-          unzip -q tmp/dl/*.zip -d tmp/x
+          echo "== recent llama.cpp releases =="
+          gh api 'repos/ggml-org/llama.cpp/releases?per_page=30' \
+            --jq '.[] | "\(.tag_name)  \([.assets[].name] | map(select(test("xcframework|apple|ios"; "i"))) | join(", "))"' | head -n 15 || true
+
+          TAG="$LLAMA_TAG"
+          if [ -z "$TAG" ]; then
+            # 最新リリースに xcframework が付いてるとは限らないので、付いてる一番新しいものを探す
+            TAG="$(gh api 'repos/ggml-org/llama.cpp/releases?per_page=30' \
+              --jq '[.[] | select(any(.assets[]; .name | test("xcframework"; "i")))][0].tag_name // ""')"
+          fi
+          echo "llama.cpp tag: ${TAG:-<none>}"
+
+          if [ -n "$TAG" ] && gh release download "$TAG" --repo ggml-org/llama.cpp --pattern '*xcframework*' --dir tmp/dl; then
+            for f in tmp/dl/*; do
+              case "$f" in *.zip) unzip -q "$f" -d tmp/x ;; *.tar.gz|*.tgz) tar -xzf "$f" -C tmp/x ;; esac
+            done
+          else
+            echo "prebuilt xcframework not found -> building from source"
+            git clone --depth 1 ${TAG:+--branch "$TAG"} https://github.com/ggml-org/llama.cpp tmp/src
+            (cd tmp/src && ./build-xcframework.sh)
+            cp -R tmp/src/build-apple/llama.xcframework tmp/x/
+          fi
+
           FW="$(find tmp/x -type d -name 'llama.xcframework' | head -n1)"
           test -n "$FW"
           mv "$FW" Frameworks/llama.xcframework
