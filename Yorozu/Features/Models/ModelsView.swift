@@ -1,4 +1,5 @@
 import SwiftUI
+import os
 
 struct ModelsView: View {
     var store: ModelStore
@@ -7,6 +8,15 @@ struct ModelsView: View {
     var body: some View {
         NavigationStack {
             List {
+                Section {
+                    LabeledContent("端末のRAM", value: Self.gb(ProcessInfo.processInfo.physicalMemory))
+                    LabeledContent("アプリが使える残り", value: Self.gb(UInt64(os_proc_available_memory())))
+                } header: {
+                    Text("メモリ")
+                } footer: {
+                    Text("4B Q4 モデルは約2.5GB。読み込み前の「使える残り」がそれより十分大きくないと落ちるだ。")
+                }
+
                 Section("入ってるモデル") {
                     if store.localModels.isEmpty {
                         Text("まだ無いだ").foregroundStyle(.secondary)
@@ -63,6 +73,10 @@ struct ModelsView: View {
             .navigationTitle("モデル")
             .refreshable { store.refresh() }
         }
+    }
+
+    private static func gb(_ bytes: UInt64) -> String {
+        String(format: "%.1f GB", Double(bytes) / 1_073_741_824)
     }
 
     @ViewBuilder

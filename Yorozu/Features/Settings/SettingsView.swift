@@ -4,7 +4,7 @@ struct SettingsView: View {
     @AppStorage(Prefs.systemPrompt) private var systemPrompt = Prefs.defaultSystemPrompt
     @AppStorage(Prefs.temperature) private var temperature = 0.7
     @AppStorage(Prefs.maxTokens) private var maxTokens = 1024
-    @AppStorage(Prefs.contextSize) private var contextSize = 4096
+    @AppStorage(Prefs.contextSize) private var contextSize = Prefs.defaultContextSize
 
     var body: some View {
         NavigationStack {

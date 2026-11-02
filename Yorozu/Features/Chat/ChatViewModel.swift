@@ -7,6 +7,10 @@ enum Prefs {
     static let maxTokens = "maxTokens"
     static let contextSize = "contextSize"
 
+    /// 6GB機(14 Pro など)はメモリに余裕が無いので短めにする
+    static let defaultContextSize: Int =
+        ProcessInfo.processInfo.physicalMemory <= 6_500_000_000 ? 2048 : 4096
+
     static let defaultSystemPrompt =
         "あなたは「よろず」という、ユーザーのiPhoneの中だけで動くAIアシスタントです。日本語で、自然で率直に答えてください。"
 }

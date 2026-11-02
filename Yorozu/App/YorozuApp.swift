@@ -13,7 +13,7 @@ struct YorozuApp: App {
 struct RootView: View {
     @State private var chat = ChatViewModel()
     private let store = ModelStore.shared
-    @AppStorage(Prefs.contextSize) private var contextSize = 4096
+    @AppStorage(Prefs.contextSize) private var contextSize = Prefs.defaultContextSize
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
