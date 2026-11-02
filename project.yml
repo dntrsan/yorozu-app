@@ -1,0 +1,55 @@
+name: Yorozu
+options:
+  bundleIdPrefix: dev.yorozu
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+targets:
+  Yorozu:
+    type: application
+    platform: iOS
+    sources:
+      - Yorozu
+    dependencies:
+      # CI が llama.cpp の公式 xcframework を Frameworks/ に置く
+      - framework: Frameworks/llama.xcframework
+        embed: true
+        codeSign: true
+      - sdk: Accelerate.framework
+      - sdk: Metal.framework
+      - sdk: MetalKit.framework
+    info:
+      path: Yorozu/Info.plist
+      properties:
+        CFBundleDisplayName: よろず
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        # ファイルAppの「このiPhone内 > よろず」に GGUF を直接置けるようにする
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true
+        ITSAppUsesNonExemptEncryption: false
+    entitlements:
+      path: Yorozu/Yorozu.entitlements
+      properties:
+        com.apple.developer.kernel.increased-memory-limit: true
+        com.apple.developer.kernel.extended-virtual-addressing: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.yorozu.app
+        TARGETED_DEVICE_FAMILY: "1,2"
+        ENABLE_BITCODE: NO

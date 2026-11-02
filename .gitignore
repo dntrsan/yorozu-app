@@ -1,0 +1,9 @@
+Frameworks/
+tmp/
+build/
+Payload/
+*.ipa
+Yorozu.xcodeproj/
+Yorozu/Info.plist
+Yorozu/Yorozu.entitlements
+.DS_Store
