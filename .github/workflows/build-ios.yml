@@ -7,7 +7,7 @@ on:
 
 env:
   # 空なら llama.cpp の最新リリースを使う。ビルドが通ったらタグ(例: b6900)を固定すると安定する
-  LLAMA_TAG: ""
+  LLAMA_TAG: "b12038"
 
 jobs:
   build:
