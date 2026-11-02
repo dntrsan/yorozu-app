@@ -1,6 +1,13 @@
 import SwiftUI
 
 struct SettingsView: View {
+    static var versionString: String {
+        let info = Bundle.main.infoDictionary
+        let ver = info?["CFBundleShortVersionString"] as? String ?? "?"
+        let build = info?["CFBundleVersion"] as? String ?? "?"
+        return "v\(ver) (build \(build))"
+    }
+
     @AppStorage(Prefs.systemPrompt) private var systemPrompt = Prefs.defaultSystemPrompt
     @AppStorage(Prefs.temperature) private var temperature = 0.7
     @AppStorage(Prefs.maxTokens) private var maxTokens = 1024
@@ -29,6 +36,9 @@ struct SettingsView: View {
                     }
                 } footer: {
                     Text("大きいほどメモリを食うだ。変えるとモデルを読み込み直すだ。落ちる時は小さくしてけろ。")
+                }
+                Section("このアプリについて") {
+                    LabeledContent("バージョン", value: Self.versionString)
                 }
             }
             .navigationTitle("設定")

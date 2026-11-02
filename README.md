@@ -14,6 +14,23 @@ iPhone の中だけで動く、ローカルLLMチャット。将来いろんな�
 4. Sideloadly で iPhone に入れる
 5. アプリの「モデル」タブでモデルをダウンロード(約2.5GB、Wi-Fi推奨)
 
+## バージョン
+
+- 表示バージョン: `project.yml` の `MARKETING_VERSION`(機能を変えたら上げる)
+- ビルド番号: GitHub Actions の実行番号(自動で増える)
+- IPA名: `Yorozu-v<バージョン>-build<番号>.ipa`、アプリ内は「設定 → このアプリについて」
+
+## Googleドライブへの自動アップロード
+
+ビルドが通ると、IPA が Googleドライブの `yorozu-iosapp` フォルダに入る。
+初回だけ、リポジトリの Secret `GDRIVE_TOKEN` を設定する(未設定ならアップロードだけスキップ):
+
+1. PC に [rclone](https://rclone.org/downloads/) を入れる
+2. `rclone authorize "drive"` を実行 → ブラウザで Google にログインして許可
+3. ターミナルに出る `{"access_token":...}` の1行JSONを丸ごとコピー
+4. GitHub → Settings → Secrets and variables → Actions → New repository secret
+   - Name: `GDRIVE_TOKEN` / Secret: コピーしたJSON
+
 ## ビルドが落ちたら
 
 Actions のログのエラーを貼ってもらえれば直す。よくある原因:

@@ -8,12 +8,24 @@ on:
 env:
   # 空なら llama.cpp の最新リリースを使う。ビルドが通ったらタグ(例: b6900)を固定すると安定する
   LLAMA_TAG: "b12038"
+  # Googleドライブの yorozu-iosapp フォルダ
+  GDRIVE_FOLDER_ID: "17Gb1OYvvRFWYsx4C2LXRCD9HTCg2_Sdp"
 
 jobs:
   build:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v5
+
+      - name: Decide version
+        run: |
+          set -euo pipefail
+          VER="$(grep -E '^\s*MARKETING_VERSION:' project.yml | head -n1 | sed -E 's/.*"([^"]+)".*/\1/')"
+          BUILD="${{ github.run_number }}"
+          echo "APP_VERSION=$VER" >> "$GITHUB_ENV"
+          echo "APP_BUILD=$BUILD" >> "$GITHUB_ENV"
+          echo "IPA_NAME=Yorozu-v${VER}-build${BUILD}.ipa" >> "$GITHUB_ENV"
+          echo "Version: $VER (build $BUILD)"
 
       - name: Install tools
         run: brew install xcodegen ldid
@@ -66,6 +78,7 @@ jobs:
             -destination 'generic/platform=iOS' \
             -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            CURRENT_PROJECT_VERSION="$APP_BUILD" \
             build
 
       - name: Package IPA
@@ -76,9 +89,30 @@ jobs:
           ldid -SYorozu/Yorozu.entitlements "$APP/Yorozu" || echo "ldid failed (entitlements not embedded)"
           rm -rf Payload && mkdir Payload
           cp -R "$APP" Payload/
-          zip -qry Yorozu.ipa Payload
+          zip -qry "$IPA_NAME" Payload
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Yorozu-ipa
-          path: Yorozu.ipa
+          name: Yorozu-v${{ env.APP_VERSION }}-build${{ env.APP_BUILD }}
+          path: ${{ env.IPA_NAME }}
+
+      - name: Upload to Google Drive
+        env:
+          GDRIVE_TOKEN: ${{ secrets.GDRIVE_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "$GDRIVE_TOKEN" ]; then
+            echo "::warning::GDRIVE_TOKEN secret が未設定なのでドライブへのアップロードはスキップ"
+            exit 0
+          fi
+          brew install rclone
+          CONF="$RUNNER_TEMP/rclone.conf"
+          {
+            echo "[gdrive]"
+            echo "type = drive"
+            echo "scope = drive"
+            echo "token = $GDRIVE_TOKEN"
+            echo "root_folder_id = $GDRIVE_FOLDER_ID"
+          } > "$CONF"
+          rclone --config "$CONF" copyto "$IPA_NAME" "gdrive:$IPA_NAME"
+          rclone --config "$CONF" lsl gdrive: | tail -n 5
