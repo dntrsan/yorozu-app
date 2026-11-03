@@ -25,14 +25,14 @@ struct YorozuLiveActivity: Widget {
                     Label {
                         Text("よろず").font(.headline)
                     } icon: {
-                        Image(systemName: s.symbol).foregroundStyle(tint(s))
+                        Image(systemName: s.symbol).foregroundStyle(phaseTint(s))
                     }
                     .padding(.leading, 4)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
                     Text(s.statusText)
                         .font(.caption)
-                        .foregroundStyle(tint(s))
+                        .foregroundStyle(phaseTint(s))
                         .padding(.trailing, 4)
                 }
                 DynamicIslandExpandedRegion(.center) {
@@ -60,23 +60,23 @@ struct YorozuLiveActivity: Widget {
             } compactLeading: {
                 Image(systemName: s.downloadProgress != nil && s.engine != .generating
                       ? "arrow.down.circle.fill" : s.symbol)
-                    .foregroundStyle(tint(s))
+                    .foregroundStyle(phaseTint(s))
             } compactTrailing: {
                 CompactTrailing(state: s)
             } minimal: {
                 if let p = s.downloadProgress, s.engine != .generating {
                     ProgressView(value: p).progressViewStyle(.circular).tint(.blue)
                 } else {
-                    Image(systemName: s.symbol).foregroundStyle(tint(s))
+                    Image(systemName: s.symbol).foregroundStyle(phaseTint(s))
                 }
             }
             .widgetURL(URL(string: s.downloadProgress != nil ? "yorozu://models" : "yorozu://chat"))
-            .keylineTint(tint(s))
+            .keylineTint(phaseTint(s))
         }
     }
 }
 
-private func tint(_ s: YorozuActivityAttributes.ContentState) -> Color {
+private func phaseTint(_ s: YorozuActivityAttributes.ContentState) -> Color {
     switch s.engine {
     case .generating: return .purple
     case .ready: return .green
@@ -125,10 +125,10 @@ private struct LockScreenView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Image(systemName: state.symbol).foregroundStyle(tint(state))
+                Image(systemName: state.symbol).foregroundStyle(phaseTint(state))
                 Text("よろず").font(.headline)
                 Spacer()
-                Text(state.statusText).font(.caption).foregroundStyle(tint(state))
+                Text(state.statusText).font(.caption).foregroundStyle(phaseTint(state))
             }
             if !state.modelName.isEmpty {
                 Text(state.shortModelName).font(.caption2).foregroundStyle(.secondary)
