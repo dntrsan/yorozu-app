@@ -159,7 +159,7 @@ struct MessageBubble: View, Equatable {
     var body: some View {
         HStack {
             if message.role == .user { Spacer(minLength: 40) }
-            Text(message.content.isEmpty ? "…" : message.content)
+            content
                 .textSelection(.enabled)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
@@ -168,7 +168,19 @@ struct MessageBubble: View, Equatable {
                     message.role == .user ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(Color(.secondarySystemBackground)),
                     in: RoundedRectangle(cornerRadius: 20, style: .continuous)
                 )
-            if message.role == .assistant { Spacer(minLength: 40) }
+            if message.role == .assistant { Spacer(minLength: 24) }
+        }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        if message.content.isEmpty {
+            Text("…")
+        } else if message.role == .assistant {
+            // AIの返答はマークダウンとして表示(見出し・箇条書き・コード・表など)
+            MarkdownView(source: message.content)
+        } else {
+            Text(message.content)
         }
     }
 }
