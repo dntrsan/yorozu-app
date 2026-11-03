@@ -52,18 +52,35 @@ struct RootView: View {
         .glassTabBar()
         // 入力欄以外をタップしたらキーボードを下げる
         .background(KeyboardDismissOnTap().frame(width: 0, height: 0))
-        // モデルを選び直した/コンテキスト長を変えた時に読み込み直す
+        // 使うモデルを決める(読み込みはチャットを開いた時)
         .task(id: "\(store.selectedURL?.path ?? "")|\(contextSize)") {
-            await chat.loadModel(at: store.selectedURL, contextSize: contextSize)
+            await chat.configure(url: store.selectedURL, contextSize: contextSize)
+            if tab == .chat, scenePhase == .active { await chat.ensureLoaded() }
+        }
+        .onChange(of: tab) {
+            if tab == .chat { Task { await chat.ensureLoaded() } }
         }
         .onChange(of: scenePhase, initial: true) {
-            if scenePhase == .active {
+            switch scenePhase {
+            case .active:
                 store.refresh()
                 LiveActivityManager.shared.ensureRunning()
-            } else {
-                // iOS はバックグラウンドからのGPU処理を許さず落ちるので、裏に回ったら生成を止める
+                if tab == .chat { Task { await chat.ensureLoaded() } }
+            case .background:
+                // 裏ではGPUが使えないので生成は止める。モデルも外して端末のメモリを空ける
+                chat.stop()
+                if !UserDefaults.standard.bool(forKey: Prefs.keepModelInBackground) {
+                    Task { await chat.release() }
+                }
+            default:
+                // .inactive(コントロールセンター等)では生成だけ止める
                 chat.stop()
             }
+        }
+        // iOS が「メモリが足りない」と言ってきたら、生成中でなければモデルを外す
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didReceiveMemoryWarningNotification)) { _ in
+            guard !chat.isGenerating else { return }
+            Task { await chat.release(note: "メモリが足りなくなったから、モデルをいったん外しただ。話しかけるとまた読み込むだ") }
         }
         // ダイナミックアイランドをタップした時
         .onOpenURL { url in

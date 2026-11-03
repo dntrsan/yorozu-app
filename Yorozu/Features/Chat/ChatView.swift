@@ -52,6 +52,12 @@ struct ChatView: View {
             }, tint: .blue)
         case .failed(let msg):
             banner(Label(msg, systemImage: "exclamationmark.triangle"), tint: .red)
+        case .unloaded:
+            if let note = vm.releaseNote {
+                banner(Label(note, systemImage: "memorychip"), tint: .orange)
+            } else {
+                EmptyView()
+            }
         case .ready:
             EmptyView()
         }
@@ -109,7 +115,7 @@ struct ChatInputBar: View {
     @FocusState private var focused: Bool
 
     private var canSend: Bool {
-        vm.isReady && !input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        vm.canAcceptInput && !input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     var body: some View {

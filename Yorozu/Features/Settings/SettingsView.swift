@@ -12,6 +12,7 @@ struct SettingsView: View {
     @AppStorage(Prefs.maxTokens) private var maxTokens = 1024
     @AppStorage(Prefs.contextSize) private var contextSize = Prefs.defaultContextSize
     @AppStorage(Prefs.islandEnabled) private var islandEnabled = false
+    @AppStorage(Prefs.keepModelInBackground) private var keepModelInBackground = false
     /// 許可状態の確認はシステムに問い合わせるので、描画のたびではなく表示時だけにする
     @State private var activitiesAllowed = true
 
@@ -46,13 +47,14 @@ struct SettingsView: View {
                     Stepper("最大出力トークン: \(maxTokens)", value: $maxTokens, in: 128...4096, step: 128)
                 }
                 Section {
+                    Toggle("裏に回してもモデルを残す", isOn: $keepModelInBackground)
                     Picker("コンテキスト長", selection: $contextSize) {
                         Text("2048").tag(2048)
                         Text("4096").tag(4096)
                         Text("8192").tag(8192)
                     }
                 } footer: {
-                    Text("大きいほどメモリを食うだ。変えるとモデルを読み込み直すだ。落ちる時は小さくしてけろ。")
+                    Text("モデルはチャットを開いた時に読み込んで、アプリを裏に回すと外すだ(端末全体が重くならないように)。残すと戻った時すぐ話せるけど、他のアプリも含めて重くなりやすいだ。コンテキスト長は大きいほどメモリを食うだ。")
                 }
                 Section("このアプリについて") {
                     LabeledContent("バージョン", value: Self.versionString)

@@ -1,5 +1,4 @@
 import SwiftUI
-import os
 
 struct HomeView: View {
     var chat: ChatViewModel
@@ -8,7 +7,6 @@ struct HomeView: View {
 
     private let conversations = ConversationStore.shared
     @State private var path = NavigationPath()
-    @AppStorage(Prefs.islandEnabled) private var islandEnabled = false
 
     private let columns = [GridItem(.adaptive(minimum: 72, maximum: 96), spacing: 16)]
 
@@ -68,7 +66,7 @@ struct HomeView: View {
                 Spacer()
                 if case .noModel = chat.state {
                     Button("入れる") { tab = .models }.glassButtonStyle(prominent: true)
-                } else if chat.isReady {
+                } else if chat.canAcceptInput {
                     Button("話す") { tab = .chat }.glassButtonStyle(prominent: true)
                 }
             }
@@ -88,10 +86,13 @@ struct HomeView: View {
             }
 
             Divider()
-            HStack(spacing: 16) {
-                stat("メモリ残り", Self.gb(UInt64(os_proc_available_memory())), "memorychip")
-                stat("会話", "\(conversations.conversations.count)件", "bubble.left")
-                stat("常駐", islandEnabled ? "オン" : "オフ", "capsule.inset.filled")
+            // メモリだけ2秒ごとに更新(カード全体ではなくこの行だけ描き直す)
+            TimelineView(.periodic(from: .now, by: 2)) { _ in
+                HStack(spacing: 16) {
+                    stat("アプリ使用", Self.gb(MemoryInfo.footprint), "memorychip")
+                    stat("使える残り", Self.gb(MemoryInfo.available), "gauge.with.dots.needle.33percent")
+                    stat("会話", "\(conversations.conversations.count)件", "bubble.left")
+                }
             }
         }
         .padding(16)
@@ -113,6 +114,7 @@ struct HomeView: View {
     private var engineTitle: String {
         switch chat.state {
         case .noModel: return "モデルが入ってないだ"
+        case .unloaded: return "休憩中(チャットを開くと起きるだ)"
         case .loading: return "モデル読み込み中…"
         case .ready: return chat.isGenerating ? "考え中…" : "準備できてるだ"
         case .failed: return "読み込みに失敗しただ"
@@ -122,7 +124,7 @@ struct HomeView: View {
     private var engineDetail: String {
         switch chat.state {
         case .noModel: return "「モデル」からダウンロードしてけろ"
-        case .loading(let n), .ready(let n): return n.replacingOccurrences(of: ".gguf", with: "")
+        case .loading(let n), .ready(let n), .unloaded(let n): return n.replacingOccurrences(of: ".gguf", with: "")
         case .failed(let m): return m
         }
     }
@@ -130,6 +132,7 @@ struct HomeView: View {
     private var engineSymbol: String {
         switch chat.state {
         case .noModel: return "tray"
+        case .unloaded: return "moon.zzz.fill"
         case .loading: return "hourglass"
         case .ready: return chat.isGenerating ? "ellipsis.bubble.fill" : "sparkles"
         case .failed: return "exclamationmark.triangle.fill"
@@ -139,6 +142,7 @@ struct HomeView: View {
     private var engineColor: Color {
         switch chat.state {
         case .noModel: return .orange
+        case .unloaded: return .teal
         case .loading: return .blue
         case .ready: return chat.isGenerating ? .purple : .green
         case .failed: return .red

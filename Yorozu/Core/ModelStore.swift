@@ -21,6 +21,12 @@ enum Catalog {
     //    ファイルApp経由で GGUF を置けばOK。
     static let models: [CatalogModel] = [
         CatalogModel(
+            filename: "Qwen3-4B-Instruct-2507-Q3_K_M.gguf",
+            title: "Qwen3 4B Instruct 2507 軽量版 (6GB機向け)",
+            note: "約2.0GB。Q4より少し賢さが落ちるけど、14 Pro などメモリ6GBの機種で軽く動く。",
+            url: URL(string: "https://huggingface.co/unsloth/Qwen3-4B-Instruct-2507-GGUF/resolve/main/Qwen3-4B-Instruct-2507-Q3_K_M.gguf")!
+        ),
+        CatalogModel(
             filename: "Qwen3-4B-Instruct-2507-Q4_K_M.gguf",
             title: "Qwen3 4B Instruct 2507 (標準・動作確認用)",
             note: "約2.5GB。検閲あり。まずパイプラインが動くかの確認用。",

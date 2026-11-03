@@ -7,6 +7,7 @@ enum Prefs {
     static let maxTokens = "maxTokens"
     static let contextSize = "contextSize"
     static let islandEnabled = "islandEnabled"
+    static let keepModelInBackground = "keepModelInBackground"
 
     /// 6GB機(14 Pro など)はメモリに余裕が無いので短めにする
     static let defaultContextSize: Int =
@@ -28,6 +29,8 @@ struct ChatMessage: Identifiable, Equatable, Hashable, Codable {
 final class ChatViewModel {
     enum State: Equatable {
         case noModel
+        /// 選ばれてるけどメモリには載せてない(チャットを開くか話しかけると読み込む)
+        case unloaded(String)
         case loading(String)
         case ready(String)
         case failed(String)
@@ -45,19 +48,79 @@ final class ChatViewModel {
 
     var isReady: Bool { if case .ready = state { return true } else { return false } }
 
-    func loadModel(at url: URL?, contextSize: Int) async {
-        stop()
+    // MARK: - モデルの読み込み/解放
+    // 4Bモデルは約3GBを握るので、6GB機では載せっぱなしだと端末全体が重くなる。
+    // そこで「チャットを使う時だけ載せる/裏に回ったら外す」にしている。
+
+    private var desiredURL: URL?
+    private var desiredContext = 0
+    private var loadedKey: String?
+    private var loadTask: Task<Void, Never>?
+    /// モデル読み込み待ちの間に送られたメッセージ
+    private var pendingText: String?
+    /// メモリ不足で外した時の一言
+    var releaseNote: String?
+
+    private func key(_ url: URL, _ ctx: Int) -> String { "\(url.path)|\(ctx)" }
+
+    /// 使うモデルを決める(まだ読み込まない)。違うモデルが載っていたら外す。
+    func configure(url: URL?, contextSize: Int) async {
+        desiredURL = url
+        desiredContext = contextSize
         guard let url else {
-            await engine.unload()
+            await release()
             setState(.noModel)
             return
         }
-        setState(.loading(url.lastPathComponent))
-        do {
-            try await engine.load(path: url.path, contextSize: contextSize)
-            setState(.ready(url.lastPathComponent))
-        } catch {
-            setState(.failed(error.localizedDescription))
+        if loadedKey == key(url, contextSize) { return }
+        if loadedKey != nil || loadTask != nil { await release() }
+        setState(.unloaded(url.lastPathComponent))
+    }
+
+    /// チャットを開いた時/話しかけた時に呼ぶ。載ってなければ載せる。
+    func ensureLoaded() async {
+        guard let url = desiredURL else { return }
+        let k = key(url, desiredContext)
+        if loadedKey == k { return }
+        if let t = loadTask { await t.value; return }
+        let ctx = desiredContext
+        let task = Task { [engine] in
+            setState(.loading(url.lastPathComponent))
+            do {
+                try await engine.load(path: url.path, contextSize: ctx)
+                loadedKey = k
+                releaseNote = nil
+                setState(.ready(url.lastPathComponent))
+            } catch {
+                loadedKey = nil
+                setState(.failed(error.localizedDescription))
+            }
+        }
+        loadTask = task
+        await task.value
+        loadTask = nil
+        if isReady, let text = pendingText {
+            pendingText = nil
+            send(text)
+        }
+    }
+
+    /// メモリから外す(生成中なら止めてから)
+    func release(note: String? = nil) async {
+        stop()
+        if let t = loadTask { await t.value }
+        guard loadedKey != nil else { return }
+        await engine.unload()
+        loadedKey = nil
+        if let note { releaseNote = note }
+        if let url = desiredURL { setState(.unloaded(url.lastPathComponent)) }
+    }
+
+    /// 送信ボタンを押せるか(載ってなくても、押せば読み込んでから送る)
+    var canAcceptInput: Bool {
+        switch state {
+        case .ready, .unloaded: return true
+        default: return false
         }
     }
 
@@ -66,6 +129,7 @@ final class ChatViewModel {
         LiveActivityManager.shared.update(force: true) {
             switch s {
             case .noModel: $0.engine = .noModel; $0.modelName = ""
+            case .unloaded(let n): $0.engine = .ready; $0.modelName = n
             case .loading(let n): $0.engine = .loading; $0.modelName = n
             case .ready(let n): $0.engine = .ready; $0.modelName = n
             case .failed(let m): $0.engine = .error; $0.snippet = m
@@ -80,7 +144,13 @@ final class ChatViewModel {
 
     func send(_ text: String) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, isReady, !isGenerating else { return }
+        guard !trimmed.isEmpty, canAcceptInput, !isGenerating else { return }
+        if !isReady {
+            // まだ載ってないので、読み込んでから送る
+            pendingText = trimmed
+            Task { await ensureLoaded() }
+            return
+        }
 
         let ud = UserDefaults.standard
         let system = ud.string(forKey: Prefs.systemPrompt) ?? Prefs.defaultSystemPrompt
@@ -186,7 +256,10 @@ final class ChatViewModel {
         }
         conv.messages = messages
         conv.updatedAt = Date()
-        if case .ready(let name) = state { conv.modelName = name }
+        switch state {
+        case .ready(let name), .unloaded(let name): conv.modelName = name
+        default: break
+        }
         store.save(conv)
     }
 }
