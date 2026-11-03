@@ -3,6 +3,7 @@ import os
 
 struct ModelsView: View {
     var store: ModelStore
+    var chat: ChatViewModel
     @State private var customURL = ""
 
     var body: some View {
@@ -17,7 +18,7 @@ struct ModelsView: View {
                     Text("4B Q4 モデルは約2.5GB。読み込み前の「使える残り」がそれより十分大きくないと落ちるだ。")
                 }
 
-                Section("入ってるモデル") {
+                Section {
                     if store.localModels.isEmpty {
                         Text("まだ無いだ").foregroundStyle(.secondary)
                     }
@@ -26,22 +27,35 @@ struct ModelsView: View {
                             store.select(m.filename)
                         } label: {
                             HStack {
-                                VStack(alignment: .leading) {
+                                VStack(alignment: .leading, spacing: 2) {
                                     Text(m.filename).font(.subheadline).lineLimit(2)
-                                    Text(ByteCountFormatter.string(fromByteCount: m.sizeBytes, countStyle: .file))
-                                        .font(.caption).foregroundStyle(.secondary)
+                                    HStack(spacing: 6) {
+                                        Text(ByteCountFormatter.string(fromByteCount: m.sizeBytes, countStyle: .file))
+                                        if chat.loadedModelName == m.filename {
+                                            Text("・メモリに載ってる").foregroundStyle(.green)
+                                        } else if store.selectedFilename == m.filename {
+                                            Text("・チャットを開くと読み込むだ").foregroundStyle(.teal)
+                                        }
+                                    }
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
                                 }
                                 Spacer()
-                                if store.selectedFilename == m.filename {
-                                    Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
-                                }
+                                Image(systemName: store.selectedFilename == m.filename ? "checkmark.circle.fill" : "circle")
+                                    .foregroundStyle(store.selectedFilename == m.filename ? Color.green : Color.secondary)
+                                    .font(.title3)
                             }
+                            .contentShape(Rectangle())
                         }
                         .tint(.primary)
                         .swipeActions {
                             Button("削除", role: .destructive) { store.delete(m) }
                         }
                     }
+                } header: {
+                    Text("入ってるモデル")
+                } footer: {
+                    Text("タップで切り替え。チャット画面の上のモデル名からも切り替えられるだ。")
                 }
 
                 if !store.downloadProgress.isEmpty {

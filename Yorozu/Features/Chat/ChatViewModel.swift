@@ -77,10 +77,13 @@ final class ChatViewModel {
 
     /// チャットを開いた時/話しかけた時に呼ぶ。載ってなければ載せる。
     func ensureLoaded() async {
+        // 別の読み込みが走っていたら終わるのを待ってから、改めて「今選ばれてるモデル」を見る
+        // (読み込み中にモデルを切り替えた時に、新しい方が読み込まれない不具合の対策)
+        while let t = loadTask { await t.value }
         guard let url = desiredURL else { return }
         let k = key(url, desiredContext)
-        if loadedKey == k { return }
-        if let t = loadTask { await t.value; return }
+        if loadedKey == k { runPendingAction(); return }
+
         let ctx = desiredContext
         let task = Task { [engine] in
             setState(.loading(url.lastPathComponent))
@@ -93,17 +96,36 @@ final class ChatViewModel {
                 loadedKey = nil
                 setState(.failed(error.localizedDescription))
             }
+            loadTask = nil
         }
         loadTask = task
         await task.value
-        loadTask = nil
+
+        // 読み込んでる間にまた切り替えられていたら、そっちを読み込み直す
+        if let now = desiredURL, key(now, desiredContext) != loadedKey, loadedKey != nil {
+            await release()
+            await ensureLoaded()
+            return
+        }
         runPendingAction()
+    }
+
+    /// 読み込みに失敗した後のやり直し
+    func retryLoad() {
+        if let url = desiredURL { setState(.unloaded(url.lastPathComponent)) }
+        Task { await ensureLoaded() }
+    }
+
+    /// 載ってるモデルのファイル名(載ってなければ nil)
+    var loadedModelName: String? {
+        guard let k = loadedKey else { return nil }
+        return URL(fileURLWithPath: String(k.split(separator: "|").first ?? "")).lastPathComponent
     }
 
     /// メモリから外す(生成中なら止めてから)
     func release(note: String? = nil) async {
         stop()
-        if let t = loadTask { await t.value }
+        while let t = loadTask { await t.value }
         guard loadedKey != nil else { return }
         await engine.unload()
         loadedKey = nil

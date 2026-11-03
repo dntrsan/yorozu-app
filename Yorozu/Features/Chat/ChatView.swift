@@ -28,6 +28,12 @@ struct ChatView: View {
                 }
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
+                    ToolbarItem(placement: .principal) {
+                        VStack(spacing: 1) {
+                            Text(currentTitle).font(.subheadline.weight(.semibold)).lineLimit(1)
+                            ModelMenu(store: ModelStore.shared)
+                        }
+                    }
                     ToolbarItem(placement: .topBarLeading) {
                         Button { showHistory = true } label: { Image(systemName: "clock.arrow.circlepath") }
                     }
@@ -55,7 +61,11 @@ struct ChatView: View {
                 Text("読み込み中: \(name)")
             }, tint: .blue)
         case .failed(let msg):
-            banner(Label(msg, systemImage: "exclamationmark.triangle"), tint: .red)
+            banner(HStack(spacing: 8) {
+                Label(msg, systemImage: "exclamationmark.triangle")
+                Button("もう一度") { vm.retryLoad() }
+                    .font(.footnote.bold())
+            }, tint: .red)
         case .unloaded:
             if let note = vm.releaseNote {
                 banner(Label(note, systemImage: "memorychip"), tint: .orange)
@@ -118,6 +128,44 @@ struct ChatView: View {
                 proxy.scrollTo("bottom", anchor: .bottom)
             }
         }
+    }
+}
+
+/// チャット画面上部のモデル切り替えメニュー
+struct ModelMenu: View {
+    var store: ModelStore
+
+    var body: some View {
+        Menu {
+            if store.localModels.isEmpty {
+                Text("モデルが入ってないだ")
+            }
+            ForEach(store.localModels) { m in
+                Button {
+                    store.select(m.filename)
+                } label: {
+                    if store.selectedFilename == m.filename {
+                        Label(m.filename, systemImage: "checkmark")
+                    } else {
+                        Text(m.filename)
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 3) {
+                Image(systemName: "cpu")
+                Text(shortName).lineLimit(1)
+                Image(systemName: "chevron.down")
+            }
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+        }
+    }
+
+    private var shortName: String {
+        let n = store.selectedFilename.replacingOccurrences(of: ".gguf", with: "")
+        if n.isEmpty { return "モデル未選択" }
+        return n.count > 26 ? String(n.prefix(26)) + "…" : n
     }
 }
 

@@ -42,7 +42,7 @@ struct RootView: View {
             ChatView(vm: chat)
                 .tabItem { Label("チャット", systemImage: "bubble.left.and.bubble.right") }
                 .tag(AppTab.chat)
-            ModelsView(store: store)
+            ModelsView(store: store, chat: chat)
                 .tabItem { Label("モデル", systemImage: "externaldrive") }
                 .tag(AppTab.models)
             SettingsView()
