@@ -24,18 +24,21 @@ struct YorozuApp: App {
     }
 }
 
-enum AppTab: Hashable { case chat, models, settings }
+enum AppTab: Hashable { case home, chat, models, settings }
 
 /// 機能を増やす時は、Features/ 配下にフォルダを足して、ここの TabView にタブを1つ足すだけ。
 struct RootView: View {
     @State private var chat = ChatViewModel()
-    @State private var tab: AppTab = .chat
+    @State private var tab: AppTab = .home
     private let store = ModelStore.shared
     @AppStorage(Prefs.contextSize) private var contextSize = Prefs.defaultContextSize
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         TabView(selection: $tab) {
+            HomeView(chat: chat, store: store, tab: $tab)
+                .tabItem { Label("ホーム", systemImage: "square.grid.2x2.fill") }
+                .tag(AppTab.home)
             ChatView(vm: chat)
                 .tabItem { Label("チャット", systemImage: "bubble.left.and.bubble.right") }
                 .tag(AppTab.chat)
@@ -65,6 +68,7 @@ struct RootView: View {
             guard url.scheme == "yorozu" else { return }
             switch url.host {
             case "models": tab = .models
+            case "home": tab = .home
             default: tab = .chat
             }
         }

@@ -3,6 +3,7 @@ import SwiftUI
 struct ChatView: View {
     @Bindable var vm: ChatViewModel
     @State private var input = ""
+    @State private var showHistory = false
     @FocusState private var focused: Bool
 
     var body: some View {
@@ -11,15 +12,34 @@ struct ChatView: View {
                 // 状態表示と入力欄は会話の上に浮かぶガラス。会話はその下に潜り込んでスクロールする
                 .safeAreaInset(edge: .top, spacing: 0) { statusBanner }
                 .safeAreaInset(edge: .bottom, spacing: 0) { inputBar }
-                .navigationTitle("よろず")
+                .navigationTitle(currentTitle)
+                .sheet(isPresented: $showHistory) {
+                    NavigationStack {
+                        HistoryView(vm: vm) { showHistory = false }
+                            .toolbar {
+                                ToolbarItem(placement: .confirmationAction) {
+                                    Button("閉じる") { showHistory = false }
+                                }
+                            }
+                    }
+                    .presentationDetents([.medium, .large])
+                }
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button { showHistory = true } label: { Image(systemName: "clock.arrow.circlepath") }
+                    }
                     ToolbarItem(placement: .topBarTrailing) {
                         Button { vm.clear() } label: { Image(systemName: "square.and.pencil") }
                             .disabled(vm.messages.isEmpty)
                     }
                 }
         }
+    }
+
+    private var currentTitle: String {
+        guard let id = vm.conversationID, let c = ConversationStore.shared.conversation(id) else { return "よろず" }
+        return c.title
     }
 
     @ViewBuilder

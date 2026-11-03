@@ -16,10 +16,10 @@ enum Prefs {
         "あなたは「よろず」という、ユーザーのiPhoneの中だけで動くAIアシスタントです。日本語で、自然で率直に答えてください。"
 }
 
-struct ChatMessage: Identifiable, Equatable {
-    enum Role: String { case user, assistant }
-    let id = UUID()
-    let role: Role
+struct ChatMessage: Identifiable, Equatable, Hashable, Codable {
+    enum Role: String, Codable { case user, assistant }
+    var id: UUID = UUID()
+    var role: Role
     var content: String
 }
 
@@ -35,6 +35,8 @@ final class ChatViewModel {
 
     private(set) var state: State = .noModel
     var messages: [ChatMessage] = []
+    /// 今開いている会話(まだ1通も送ってなければ nil)
+    private(set) var conversationID: UUID?
     var isGenerating = false
     var errorText: String?
 
@@ -86,6 +88,9 @@ final class ChatViewModel {
         let maxTokens = ud.object(forKey: Prefs.maxTokens) as? Int ?? 1024
 
         messages.append(ChatMessage(role: .user, content: trimmed))
+        if conversationID == nil { conversationID = UUID() }
+        let convID = conversationID
+        persist()
         var turns: [ChatTurn] = []
         if !system.isEmpty { turns.append(ChatTurn(role: "system", content: system)) }
         turns += messages.map { ChatTurn(role: $0.role.rawValue, content: $0.content) }
@@ -104,7 +109,8 @@ final class ChatViewModel {
         generationTask = Task { [engine] in
             do {
                 for try await piece in engine.generate(turns: turns, params: params) {
-                    guard index < messages.count else { break }
+                    // 生成中に別の会話を開いた時に混ざらないように
+                    guard conversationID == convID, index < messages.count else { break }
                     messages[index].content += piece
                     let snippet = Self.tail(messages[index].content)
                     LiveActivityManager.shared.update { $0.snippet = snippet }
@@ -114,6 +120,7 @@ final class ChatViewModel {
             }
             isGenerating = false
             UIApplication.shared.isIdleTimerDisabled = false
+            if conversationID == convID { persist() }
             let final = index < messages.count ? Self.tail(messages[index].content) : ""
             let ready = isReady
             LiveActivityManager.shared.update(force: true) {
@@ -127,9 +134,44 @@ final class ChatViewModel {
         generationTask?.cancel()
     }
 
+    /// 新しい会話を始める(今の会話は保存済み)
     func clear() {
         stop()
+        persist()
         messages.removeAll()
+        conversationID = nil
         errorText = nil
+    }
+
+    func open(_ conv: Conversation) {
+        guard conv.id != conversationID else { return }
+        stop()
+        persist()
+        messages = conv.messages
+        conversationID = conv.id
+        errorText = nil
+    }
+
+    /// 削除された会話を開いていたら閉じる
+    func forget(_ id: UUID) {
+        guard id == conversationID else { return }
+        stop()
+        messages.removeAll()
+        conversationID = nil
+    }
+
+    private func persist() {
+        guard let id = conversationID, !messages.isEmpty else { return }
+        let store = ConversationStore.shared
+        var conv = store.conversation(id) ?? Conversation(id: id)
+        if conv.messages.isEmpty || conv.title == "新しい会話",
+           let first = messages.first(where: { $0.role == .user })?.content {
+            let flat = first.replacingOccurrences(of: "\n", with: " ")
+            conv.title = flat.count > 30 ? String(flat.prefix(30)) + "…" : flat
+        }
+        conv.messages = messages
+        conv.updatedAt = Date()
+        if case .ready(let name) = state { conv.modelName = name }
+        store.save(conv)
     }
 }
