@@ -3,6 +3,7 @@ import SwiftUI
 struct ChatView: View {
     @Bindable var vm: ChatViewModel
     @State private var showHistory = false
+    @State private var selecting: SelectableText?
 
     var body: some View {
         NavigationStack {
@@ -11,6 +12,9 @@ struct ChatView: View {
                 .safeAreaInset(edge: .top, spacing: 0) { statusBanner }
                 .safeAreaInset(edge: .bottom, spacing: 0) { ChatInputBar(vm: vm) }
                 .navigationTitle(currentTitle)
+                .sheet(item: $selecting) { item in
+                    SelectTextSheet(text: item.text)
+                }
                 .sheet(isPresented: $showHistory) {
                     NavigationStack {
                         HistoryView(vm: vm) { showHistory = false }
@@ -88,7 +92,16 @@ struct ChatView: View {
                         .frame(maxWidth: .infinity)
                     }
                     ForEach(vm.messages) { msg in
-                        MessageBubble(message: msg).equatable().id(msg.id)
+                        let isLast = msg.id == vm.messages.last?.id
+                        MessageBubble(
+                            message: msg,
+                            showActions: msg.role == .assistant && !(isLast && vm.isGenerating),
+                            canRegenerate: isLast && vm.canRegenerate,
+                            onRegenerate: { vm.regenerate() },
+                            onSelectText: { selecting = SelectableText(text: msg.content) }
+                        )
+                        .equatable()
+                        .id(msg.id)
                     }
                     if let err = vm.errorText {
                         Text(err).font(.footnote).foregroundStyle(.red)
@@ -153,34 +166,148 @@ struct ChatInputBar: View {
     }
 }
 
+struct SelectableText: Identifiable {
+    let id = UUID()
+    let text: String
+}
+
 struct MessageBubble: View, Equatable {
     let message: ChatMessage
+    var showActions = false
+    var canRegenerate = false
+    var onRegenerate: () -> Void = {}
+    var onSelectText: () -> Void = {}
+
+    @State private var copied = false
+
+    // 中身が変わった時だけ描き直す(クロージャは比較しない)
+    static func == (a: MessageBubble, b: MessageBubble) -> Bool {
+        a.message == b.message && a.showActions == b.showActions && a.canRegenerate == b.canRegenerate
+    }
+
+    private var isUser: Bool { message.role == .user }
 
     var body: some View {
         HStack {
-            if message.role == .user { Spacer(minLength: 40) }
-            content
-                .textSelection(.enabled)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .foregroundStyle(message.role == .user ? Color.white : Color.primary)
-                .background(
-                    message.role == .user ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(Color(.secondarySystemBackground)),
-                    in: RoundedRectangle(cornerRadius: 20, style: .continuous)
-                )
-            if message.role == .assistant { Spacer(minLength: 24) }
+            if isUser { Spacer(minLength: 40) }
+            VStack(alignment: isUser ? .trailing : .leading, spacing: 4) {
+                bubble
+                    .contextMenu { menu }
+                if showActions { actionRow }
+            }
+            if !isUser { Spacer(minLength: 24) }
         }
+    }
+
+    private var bubble: some View {
+        content
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .foregroundStyle(isUser ? Color.white : Color.primary)
+            .background(
+                isUser ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(Color(.secondarySystemBackground)),
+                in: RoundedRectangle(cornerRadius: 20, style: .continuous)
+            )
+            .contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 
     @ViewBuilder
     private var content: some View {
         if message.content.isEmpty {
             Text("…")
-        } else if message.role == .assistant {
+        } else if !isUser {
             // AIの返答はマークダウンとして表示(見出し・箇条書き・コード・表など)
             MarkdownView(source: message.content)
         } else {
             Text(message.content)
         }
+    }
+
+    @ViewBuilder
+    private var menu: some View {
+        Button { copy() } label: { Label("コピー", systemImage: "doc.on.doc") }
+        Button { onSelectText() } label: { Label("テキストを選択", systemImage: "selection.pin.in.out") }
+        if canRegenerate {
+            Button { onRegenerate() } label: { Label("再生成", systemImage: "arrow.clockwise") }
+        }
+    }
+
+    private var actionRow: some View {
+        HStack(spacing: 16) {
+            Button { copy() } label: {
+                Image(systemName: copied ? "checkmark" : "doc.on.doc")
+            }
+            Button { onSelectText() } label: {
+                Image(systemName: "selection.pin.in.out")
+            }
+            if canRegenerate {
+                Button { onRegenerate() } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+            }
+        }
+        .font(.footnote)
+        .foregroundStyle(.secondary)
+        .buttonStyle(.borderless)
+        .padding(.leading, 8)
+    }
+
+    private func copy() {
+        UIPasteboard.general.string = message.content
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+        copied = true
+        Task {
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            copied = false
+        }
+    }
+}
+
+/// 好きな範囲を選んでコピーできる画面(iOS 標準の文字選択)
+struct SelectTextSheet: View {
+    let text: String
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            SelectableTextView(text: text)
+                .padding(.horizontal, 12)
+                .navigationTitle("テキストを選択")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("閉じる") { dismiss() }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("全部コピー") {
+                            UIPasteboard.general.string = text
+                            UINotificationFeedbackGenerator().notificationOccurred(.success)
+                            dismiss()
+                        }
+                    }
+                }
+        }
+        .presentationDetents([.medium, .large])
+    }
+}
+
+private struct SelectableTextView: UIViewRepresentable {
+    let text: String
+
+    func makeUIView(context: Context) -> UITextView {
+        let v = UITextView()
+        v.isEditable = false
+        v.isSelectable = true
+        v.backgroundColor = .clear
+        v.font = .preferredFont(forTextStyle: .body)
+        v.adjustsFontForContentSizeCategory = true
+        v.textContainerInset = UIEdgeInsets(top: 12, left: 4, bottom: 24, right: 4)
+        v.dataDetectorTypes = [.link]
+        v.text = text
+        return v
+    }
+
+    func updateUIView(_ v: UITextView, context: Context) {
+        if v.text != text { v.text = text }
     }
 }

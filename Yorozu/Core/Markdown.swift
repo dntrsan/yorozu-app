@@ -268,7 +268,6 @@ private struct CodeBlockView: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 Text(code)
                     .font(.system(.footnote, design: .monospaced))
-                    .textSelection(.enabled)
                     .padding(.horizontal, 10)
                     .padding(.bottom, 10)
             }

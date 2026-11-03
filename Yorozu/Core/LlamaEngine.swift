@@ -44,8 +44,13 @@ actor LlamaEngine {
     private var context: OpaquePointer?
     private var vocab: OpaquePointer?
     private var contextSize: Int = 0
+    /// いま KV キャッシュに入っているトークン列(次の生成で共通部分を使い回す)
+    private var cachedTokens: [llama_token] = []
+    /// KV キャッシュを 8bit に圧縮できたか
+    private(set) var kvQuantized = false
 
-    private let batchSize = 512
+    /// 一度に処理するトークン数。小さいほど作業用メモリが減る(読み込みは少し遅くなる)
+    private let batchSize = 256
 
     deinit {
         if let c = context { llama_free(c) }
@@ -69,14 +74,30 @@ actor LlamaEngine {
             throw EngineError.modelLoadFailed
         }
 
-        var cp = llama_context_default_params()
-        cp.n_ctx = UInt32(contextSize)
-        cp.n_batch = UInt32(batchSize)
-        let threads = Int32(max(2, min(6, ProcessInfo.processInfo.activeProcessorCount - 2)))
-        cp.n_threads = threads
-        cp.n_threads_batch = threads
+        func contextParams(quantizeKV: Bool) -> llama_context_params {
+            var cp = llama_context_default_params()
+            cp.n_ctx = UInt32(contextSize)
+            cp.n_batch = UInt32(batchSize)
+            cp.n_ubatch = UInt32(batchSize)
+            let threads = Int32(max(2, min(6, ProcessInfo.processInfo.activeProcessorCount - 2)))
+            cp.n_threads = threads
+            cp.n_threads_batch = threads
+            if quantizeKV {
+                // 会話の記憶(KVキャッシュ)を 8bit にしてメモリを約半分にする
+                cp.type_k = GGML_TYPE_Q8_0
+                cp.type_v = GGML_TYPE_Q8_0
+            }
+            return cp
+        }
 
-        guard let c = llama_init_from_model(m, cp) else {
+        // 8bit KV が使えない環境(Flash Attention 非対応など)なら普通の設定でやり直す
+        var quantized = true
+        var c = llama_init_from_model(m, contextParams(quantizeKV: true))
+        if c == nil {
+            quantized = false
+            c = llama_init_from_model(m, contextParams(quantizeKV: false))
+        }
+        guard let c else {
             llama_model_free(m)
             throw EngineError.contextFailed
         }
@@ -85,6 +106,8 @@ actor LlamaEngine {
         context = c
         vocab = llama_model_get_vocab(m)
         self.contextSize = contextSize
+        kvQuantized = quantized
+        cachedTokens = []
     }
 
     func unload() {
@@ -94,6 +117,7 @@ actor LlamaEngine {
         model = nil
         vocab = nil
         contextSize = 0
+        cachedTokens = []
     }
 
     // MARK: - Generate
@@ -115,9 +139,6 @@ actor LlamaEngine {
     ) {
         do {
             guard let ctx = context, vocab != nil else { throw EngineError.notLoaded }
-
-            // 毎回まっさらにして、会話全体を再評価する(単純で確実)
-            llama_memory_clear(llama_get_memory(ctx), true)
 
             let maxNew = max(16, min(params.maxTokens, contextSize / 2))
             let budget = contextSize - maxNew
@@ -141,7 +162,21 @@ actor LlamaEngine {
             llama_sampler_chain_add(chain, llama_sampler_init_temp(params.temperature))
             llama_sampler_chain_add(chain, llama_sampler_init_dist(UInt32.random(in: 0..<UInt32.max)))
 
-            try decodePrompt(tokens)
+            // 前回の会話と先頭が同じ部分は KV キャッシュを使い回して、増えた分だけ読む
+            // (毎回全部読み直すより、長い会話ほど返答が速く始まる)
+            let mem = llama_get_memory(ctx)
+            var reuse = 0
+            let limit = min(cachedTokens.count, tokens.count - 1)  // 最低1トークンは読んで続きを出させる
+            while reuse < limit, cachedTokens[reuse] == tokens[reuse] { reuse += 1 }
+            if reuse > 0, llama_memory_seq_rm(mem, 0, Int32(reuse), -1) {
+                cachedTokens.removeSubrange(reuse...)
+            } else {
+                llama_memory_clear(mem, true)
+                cachedTokens = []
+                reuse = 0
+            }
+
+            try decodePrompt(Array(tokens[reuse...]))
 
             var pending: [UInt8] = []
             var produced = 0
@@ -167,9 +202,13 @@ actor LlamaEngine {
                 var next = tok
                 let rc = llama_decode(ctx, llama_batch_get_one(&next, 1))
                 if rc != 0 { throw EngineError.decodeFailed(rc) }
+                cachedTokens.append(tok)
             }
             continuation.finish()
         } catch {
+            // 途中で失敗したら KV キャッシュの中身が当てにならないので捨てる
+            if let ctx = context { llama_memory_clear(llama_get_memory(ctx), true) }
+            cachedTokens = []
             continuation.finish(throwing: error)
         }
     }
@@ -188,6 +227,7 @@ actor LlamaEngine {
                 return llama_decode(ctx, batch)
             }
             if rc != 0 { throw EngineError.decodeFailed(rc) }
+            cachedTokens.append(contentsOf: tokens[pos..<(pos + n)])
             pos += n
         }
     }

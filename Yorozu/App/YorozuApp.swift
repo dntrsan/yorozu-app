@@ -78,8 +78,9 @@ struct RootView: View {
             }
         }
         // iOS が「メモリが足りない」と言ってきたら、生成中でなければモデルを外す
+        // 警告はまだ余裕がある時にも来るので、本当に残りが少ない時だけ外す
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didReceiveMemoryWarningNotification)) { _ in
-            guard !chat.isGenerating else { return }
+            guard !chat.isGenerating, MemoryInfo.available < 350 * 1024 * 1024 else { return }
             Task { await chat.release(note: "メモリが足りなくなったから、モデルをいったん外しただ。話しかけるとまた読み込むだ") }
         }
         // ダイナミックアイランドをタップした時

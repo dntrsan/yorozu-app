@@ -56,8 +56,6 @@ final class ChatViewModel {
     private var desiredContext = 0
     private var loadedKey: String?
     private var loadTask: Task<Void, Never>?
-    /// モデル読み込み待ちの間に送られたメッセージ
-    private var pendingText: String?
     /// メモリ不足で外した時の一言
     var releaseNote: String?
 
@@ -99,10 +97,7 @@ final class ChatViewModel {
         loadTask = task
         await task.value
         loadTask = nil
-        if isReady, let text = pendingText {
-            pendingText = nil
-            send(text)
-        }
+        runPendingAction()
     }
 
     /// メモリから外す(生成中なら止めてから)
@@ -142,28 +137,63 @@ final class ChatViewModel {
         return flat.count > n ? "…" + String(flat.suffix(n)) : flat
     }
 
+    private enum PendingAction { case send(String), regenerate }
+    private var pendingAction: PendingAction?
+
     func send(_ text: String) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, canAcceptInput, !isGenerating else { return }
         if !isReady {
             // まだ載ってないので、読み込んでから送る
-            pendingText = trimmed
+            pendingAction = .send(trimmed)
             Task { await ensureLoaded() }
             return
         }
+        messages.append(ChatMessage(role: .user, content: trimmed))
+        if conversationID == nil { conversationID = UUID() }
+        persist()
+        generateReply()
+    }
 
+    /// 最後の返答を作り直せるか
+    var canRegenerate: Bool {
+        !isGenerating && canAcceptInput && messages.last?.role == .assistant
+            && messages.dropLast().last?.role == .user
+    }
+
+    /// 最後の返答を消して、同じ質問でもう一度答えさせる
+    func regenerate() {
+        guard canRegenerate else { return }
+        if !isReady {
+            pendingAction = .regenerate
+            Task { await ensureLoaded() }
+            return
+        }
+        messages.removeLast()
+        generateReply()
+    }
+
+    private func runPendingAction() {
+        guard isReady, let action = pendingAction else { return }
+        pendingAction = nil
+        switch action {
+        case .send(let text): send(text)
+        case .regenerate: regenerate()
+        }
+    }
+
+    /// messages の最後(ユーザーの発言)に対する返答を生成する
+    private func generateReply() {
         let ud = UserDefaults.standard
         let system = ud.string(forKey: Prefs.systemPrompt) ?? Prefs.defaultSystemPrompt
         let temp = ud.object(forKey: Prefs.temperature) as? Double ?? 0.7
         let maxTokens = ud.object(forKey: Prefs.maxTokens) as? Int ?? 1024
 
-        messages.append(ChatMessage(role: .user, content: trimmed))
-        if conversationID == nil { conversationID = UUID() }
         let convID = conversationID
-        persist()
         var turns: [ChatTurn] = []
         if !system.isEmpty { turns.append(ChatTurn(role: "system", content: system)) }
         turns += messages.map { ChatTurn(role: $0.role.rawValue, content: $0.content) }
+        let question = messages.last?.content ?? ""
 
         messages.append(ChatMessage(role: .assistant, content: ""))
         let index = messages.count - 1
@@ -172,12 +202,12 @@ final class ChatViewModel {
         UIApplication.shared.isIdleTimerDisabled = true
         LiveActivityManager.shared.update(force: true) {
             $0.engine = .generating
-            $0.snippet = Self.tail(trimmed)
+            $0.snippet = Self.tail(question)
         }
 
         let params = GenerationParams(temperature: Float(temp), maxTokens: maxTokens)
         generationTask = Task { [engine] in
-            // 1トークンごとに画面を更新すると重いので、0.05秒ぶんまとめて流し込む
+            // 1トークンごとに画面を更新すると重いので、0.08秒ぶんまとめて流し込む
             var buffer = ""
             var lastFlush = CFAbsoluteTimeGetCurrent()
             do {
@@ -185,7 +215,7 @@ final class ChatViewModel {
                     guard conversationID == convID else { break }
                     buffer += piece
                     let now = CFAbsoluteTimeGetCurrent()
-                    if now - lastFlush >= 0.05 {
+                    if now - lastFlush >= 0.08 {
                         appendChunk(buffer, at: index, convID: convID)
                         buffer = ""
                         lastFlush = now
