@@ -45,22 +45,31 @@ final class ModelStore {
     var downloadError: String?
     private(set) var selectedFilename: String
 
-    private var downloaders: [String: Downloader] = [:]
     private let selectedKey = "selectedModelFilename"
 
     private init() {
         selectedFilename = UserDefaults.standard.string(forKey: selectedKey) ?? ""
         refresh()
+
+        // コールバックは session を作る前に繋ぐ(裏で完了したイベントを取りこぼさないため)
+        let dl = BackgroundDownloader.shared
+        dl.onProgress = { name, p in
+            Task { @MainActor in ModelStore.shared.handleProgress(name, p) }
+        }
+        dl.onFinish = { name, result in
+            Task { @MainActor in ModelStore.shared.handleFinish(name, result) }
+        }
+        dl.runningDownloads { running in
+            Task { @MainActor in
+                for (name, p) in running { ModelStore.shared.downloadProgress[name] = p }
+            }
+        }
     }
 
     static var documentsDir: URL {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
     }
-    static var modelsDir: URL {
-        let dir = documentsDir.appendingPathComponent("Models", isDirectory: true)
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir
-    }
+    static var modelsDir: URL { BackgroundDownloader.modelsDir }
 
     var selectedURL: URL? {
         localModels.first(where: { $0.filename == selectedFilename })?.url
@@ -101,30 +110,46 @@ final class ModelStore {
     // MARK: - Download
 
     func download(url: URL, filename: String) {
-        guard downloaders[filename] == nil else { return }
+        guard downloadProgress[filename] == nil else { return }
         downloadError = nil
         downloadProgress[filename] = 0
-        let dest = Self.modelsDir.appendingPathComponent(filename)
-        let d = Downloader(destination: dest) { [weak self] p in
-            Task { @MainActor in self?.downloadProgress[filename] = p }
+        BackgroundDownloader.shared.start(url: url, filename: filename)
+        LiveActivityManager.shared.update(force: true) {
+            $0.downloadName = filename
+            $0.downloadProgress = 0
         }
-        downloaders[filename] = d
-        Task {
-            do {
-                try await d.start(url: url)
-                var u = dest
-                var rv = URLResourceValues()
-                rv.isExcludedFromBackup = true
-                try? u.setResourceValues(rv)
-                refresh()
-                if selectedFilename.isEmpty || selectedURL == nil { select(filename) }
-            } catch {
-                if (error as? URLError)?.code != .cancelled {
-                    downloadError = "\(filename): \(error.localizedDescription)"
-                }
+    }
+
+    func canResume(_ filename: String) -> Bool {
+        BackgroundDownloader.shared.hasResumeData(for: filename)
+    }
+
+    fileprivate func handleProgress(_ name: String, _ p: Double) {
+        // 中止直後に遅れて届いた進捗で復活させない
+        guard downloadProgress[name] != nil else { return }
+        downloadProgress[name] = p
+        LiveActivityManager.shared.update {
+            $0.downloadName = name
+            $0.downloadProgress = p
+        }
+    }
+
+    fileprivate func handleFinish(_ name: String, _ result: Result<URL, Error>) {
+        downloadProgress[name] = nil
+        switch result {
+        case .success:
+            refresh()
+            if selectedFilename.isEmpty || selectedURL == nil { select(name) }
+        case .failure(let error):
+            if (error as? URLError)?.code != .cancelled {
+                let hint = canResume(name) ? "(もう一度押すと続きから再開するだ)" : ""
+                downloadError = "\(name): \(error.localizedDescription)\(hint)"
             }
-            downloaders[filename] = nil
-            downloadProgress[filename] = nil
+        }
+        let next = downloadProgress.first
+        LiveActivityManager.shared.update(force: true) {
+            $0.downloadName = next?.key
+            $0.downloadProgress = next?.value
         }
     }
 
@@ -140,69 +165,7 @@ final class ModelStore {
     }
 
     func cancelDownload(_ filename: String) {
-        downloaders[filename]?.cancel()
-    }
-}
-
-/// 進捗付きダウンロード(フォアグラウンド用)
-final class Downloader: NSObject, URLSessionDownloadDelegate {
-    private let destination: URL
-    private let onProgress: (Double) -> Void
-    private var continuation: CheckedContinuation<Void, Error>?
-    private var session: URLSession?
-    private var task: URLSessionDownloadTask?
-
-    init(destination: URL, onProgress: @escaping (Double) -> Void) {
-        self.destination = destination
-        self.onProgress = onProgress
-    }
-
-    func start(url: URL) async throws {
-        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
-            continuation = cont
-            let s = URLSession(configuration: .default, delegate: self, delegateQueue: nil)
-            session = s
-            let t = s.downloadTask(with: url)
-            task = t
-            t.resume()
-        }
-    }
-
-    func cancel() { task?.cancel() }
-
-    private func finish(_ result: Result<Void, Error>) {
-        guard let c = continuation else { return }
-        continuation = nil
-        session?.finishTasksAndInvalidate()
-        session = nil
-        c.resume(with: result)
-    }
-
-    func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask,
-                    didWriteData bytesWritten: Int64, totalBytesWritten: Int64,
-                    totalBytesExpectedToWrite: Int64) {
-        guard totalBytesExpectedToWrite > 0 else { return }
-        onProgress(Double(totalBytesWritten) / Double(totalBytesExpectedToWrite))
-    }
-
-    func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask,
-                    didFinishDownloadingTo location: URL) {
-        if let http = downloadTask.response as? HTTPURLResponse, http.statusCode != 200 {
-            finish(.failure(NSError(domain: "Yorozu", code: http.statusCode,
-                                    userInfo: [NSLocalizedDescriptionKey: "HTTP \(http.statusCode)(URLが違うか、ログイン必須のモデルかも)"])))
-            return
-        }
-        do {
-            let fm = FileManager.default
-            try? fm.removeItem(at: destination)
-            try fm.moveItem(at: location, to: destination)
-            finish(.success(()))
-        } catch {
-            finish(.failure(error))
-        }
-    }
-
-    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
-        if let error { finish(.failure(error)) }
+        BackgroundDownloader.shared.cancel(filename: filename)
+        handleFinish(filename, .failure(URLError(.cancelled)))
     }
 }

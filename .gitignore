@@ -7,3 +7,4 @@ Yorozu.xcodeproj/
 Yorozu/Info.plist
 Yorozu/Yorozu.entitlements
 .DS_Store
+LiveActivity/Info.plist

@@ -7,7 +7,7 @@ options:
 settings:
   base:
     SWIFT_VERSION: "5.0"
-    MARKETING_VERSION: "0.1.1"
+    MARKETING_VERSION: "0.2.0"
     CURRENT_PROJECT_VERSION: "1"
 targets:
   Yorozu:
@@ -15,7 +15,9 @@ targets:
     platform: iOS
     sources:
       - Yorozu
+      - Shared
     dependencies:
+      - target: YorozuLiveActivity
       # CI が llama.cpp の公式 xcframework を Frameworks/ に置く
       - framework: Frameworks/llama.xcframework
         embed: true
@@ -43,6 +45,13 @@ targets:
         UIFileSharingEnabled: true
         LSSupportsOpeningDocumentsInPlace: true
         ITSAppUsesNonExemptEncryption: false
+        # ダイナミックアイランド常駐(ライブアクティビティ)
+        NSSupportsLiveActivities: true
+        NSSupportsLiveActivitiesFrequentUpdates: true
+        CFBundleURLTypes:
+          - CFBundleURLName: dev.yorozu.app
+            CFBundleURLSchemes:
+              - yorozu
     entitlements:
       path: Yorozu/Yorozu.entitlements
       properties:
@@ -53,3 +62,27 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: dev.yorozu.app
         TARGETED_DEVICE_FAMILY: "1,2"
         ENABLE_BITCODE: NO
+
+  YorozuLiveActivity:
+    type: app-extension
+    platform: iOS
+    sources:
+      - LiveActivity
+      - Shared
+    dependencies:
+      - sdk: WidgetKit.framework
+      - sdk: SwiftUI.framework
+      - sdk: ActivityKit.framework
+    info:
+      path: LiveActivity/Info.plist
+      properties:
+        CFBundleDisplayName: よろず
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.yorozu.app.LiveActivity
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SKIP_INSTALL: YES

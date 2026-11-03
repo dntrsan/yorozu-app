@@ -12,10 +12,28 @@ struct SettingsView: View {
     @AppStorage(Prefs.temperature) private var temperature = 0.7
     @AppStorage(Prefs.maxTokens) private var maxTokens = 1024
     @AppStorage(Prefs.contextSize) private var contextSize = Prefs.defaultContextSize
+    @AppStorage(Prefs.islandEnabled) private var islandEnabled = false
 
     var body: some View {
         NavigationStack {
             Form {
+                Section {
+                    Toggle(isOn: $islandEnabled) {
+                        Label("ダイナミックアイランド常駐", systemImage: "capsule.inset.filled")
+                    }
+                    .onChange(of: islandEnabled) {
+                        LiveActivityManager.shared.setEnabled(islandEnabled)
+                    }
+                } header: {
+                    Text("常駐モード")
+                } footer: {
+                    if LiveActivityManager.shared.isSystemAllowed {
+                        Text("アプリを閉じてもダイナミックアイランドとロック画面に、モデルの状態・返答・ダウンロード進捗を出すだ。iOSの決まりで8時間で消えるけど、アプリを開けばまた出るだ。")
+                    } else {
+                        Text("iPhoneの「設定 → よろず → ライブアクティビティ」がオフになってるだ。オンにしてけろ。")
+                    }
+                }
+
                 Section("システムプロンプト") {
                     TextEditor(text: $systemPrompt)
                         .frame(minHeight: 120)

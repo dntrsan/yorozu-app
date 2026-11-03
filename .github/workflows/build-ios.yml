@@ -27,6 +27,19 @@ jobs:
           echo "IPA_NAME=Yorozu-v${VER}-build${BUILD}.ipa" >> "$GITHUB_ENV"
           echo "Version: $VER (build $BUILD)"
 
+      - name: Select Xcode (26 for Liquid Glass)
+        run: |
+          set -euo pipefail
+          ls -d /Applications/Xcode*.app || true
+          X="$(ls -d /Applications/Xcode_26*.app 2>/dev/null | grep -vi beta | sort -V | tail -n1 || true)"
+          if [ -n "$X" ]; then
+            sudo xcode-select -s "$X"
+          else
+            echo "::warning::Xcode 26 が見つからないので既定の Xcode でビルド(リキッドグラスは無効)"
+          fi
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+
       - name: Install tools
         run: brew install xcodegen ldid
 

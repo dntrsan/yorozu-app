@@ -44,6 +44,27 @@ struct ModelsView: View {
                     }
                 }
 
+                if !store.downloadProgress.isEmpty {
+                    Section {
+                        ForEach(store.downloadProgress.keys.sorted(), id: \.self) { name in
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(name).font(.subheadline).lineLimit(2)
+                                HStack {
+                                    ProgressView(value: store.downloadProgress[name] ?? 0)
+                                    Text("\(Int((store.downloadProgress[name] ?? 0) * 100))%")
+                                        .font(.caption.monospacedDigit())
+                                    Button("中止", role: .destructive) { store.cancelDownload(name) }
+                                        .font(.caption)
+                                }
+                            }
+                        }
+                    } header: {
+                        Text("ダウンロード中")
+                    } footer: {
+                        Text("ホームに戻ったり画面をロックしても続くだ。アプリを上にスワイプして完全に終了した時だけ止まるから、それだけは気をつけてけろ。")
+                    }
+                }
+
                 Section("ダウンロード") {
                     ForEach(Catalog.models) { c in
                         catalogRow(c)
@@ -84,17 +105,15 @@ struct ModelsView: View {
         VStack(alignment: .leading, spacing: 6) {
             Text(c.title).font(.subheadline.bold())
             Text(c.note).font(.caption).foregroundStyle(.secondary)
-            if let p = store.downloadProgress[c.filename] {
-                HStack {
-                    ProgressView(value: p)
-                    Text("\(Int(p * 100))%").font(.caption.monospacedDigit())
-                    Button("中止") { store.cancelDownload(c.filename) }.font(.caption)
-                }
+            if store.downloadProgress[c.filename] != nil {
+                Label("ダウンロード中…", systemImage: "arrow.down.circle").font(.caption).foregroundStyle(.secondary)
             } else if store.isDownloaded(c.filename) {
                 Label("ダウンロード済み", systemImage: "checkmark").font(.caption).foregroundStyle(.green)
             } else {
-                Button("ダウンロード") { store.download(url: c.url, filename: c.filename) }
-                    .buttonStyle(.bordered)
+                Button(store.canResume(c.filename) ? "続きから再開" : "ダウンロード") {
+                    store.download(url: c.url, filename: c.filename)
+                }
+                .glassButtonStyle()
             }
         }
         .padding(.vertical, 4)

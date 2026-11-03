@@ -6,6 +6,7 @@ enum Prefs {
     static let temperature = "temperature"
     static let maxTokens = "maxTokens"
     static let contextSize = "contextSize"
+    static let islandEnabled = "islandEnabled"
 
     /// 6GB機(14 Pro など)はメモリに余裕が無いので短めにする
     static let defaultContextSize: Int =
@@ -32,7 +33,7 @@ final class ChatViewModel {
         case failed(String)
     }
 
-    var state: State = .noModel
+    private(set) var state: State = .noModel
     var messages: [ChatMessage] = []
     var isGenerating = false
     var errorText: String?
@@ -46,16 +47,33 @@ final class ChatViewModel {
         stop()
         guard let url else {
             await engine.unload()
-            state = .noModel
+            setState(.noModel)
             return
         }
-        state = .loading(url.lastPathComponent)
+        setState(.loading(url.lastPathComponent))
         do {
             try await engine.load(path: url.path, contextSize: contextSize)
-            state = .ready(url.lastPathComponent)
+            setState(.ready(url.lastPathComponent))
         } catch {
-            state = .failed(error.localizedDescription)
+            setState(.failed(error.localizedDescription))
         }
+    }
+
+    private func setState(_ s: State) {
+        state = s
+        LiveActivityManager.shared.update(force: true) {
+            switch s {
+            case .noModel: $0.engine = .noModel; $0.modelName = ""
+            case .loading(let n): $0.engine = .loading; $0.modelName = n
+            case .ready(let n): $0.engine = .ready; $0.modelName = n
+            case .failed(let m): $0.engine = .error; $0.snippet = m
+            }
+        }
+    }
+
+    private static func tail(_ text: String, _ n: Int = 80) -> String {
+        let flat = text.replacingOccurrences(of: "\n", with: " ")
+        return flat.count > n ? "…" + String(flat.suffix(n)) : flat
     }
 
     func send(_ text: String) {
@@ -77,6 +95,10 @@ final class ChatViewModel {
         isGenerating = true
         errorText = nil
         UIApplication.shared.isIdleTimerDisabled = true
+        LiveActivityManager.shared.update(force: true) {
+            $0.engine = .generating
+            $0.snippet = Self.tail(trimmed)
+        }
 
         let params = GenerationParams(temperature: Float(temp), maxTokens: maxTokens)
         generationTask = Task { [engine] in
@@ -84,12 +106,20 @@ final class ChatViewModel {
                 for try await piece in engine.generate(turns: turns, params: params) {
                     guard index < messages.count else { break }
                     messages[index].content += piece
+                    let snippet = Self.tail(messages[index].content)
+                    LiveActivityManager.shared.update { $0.snippet = snippet }
                 }
             } catch {
                 errorText = error.localizedDescription
             }
             isGenerating = false
             UIApplication.shared.isIdleTimerDisabled = false
+            let final = index < messages.count ? Self.tail(messages[index].content) : ""
+            let ready = isReady
+            LiveActivityManager.shared.update(force: true) {
+                $0.engine = ready ? .ready : $0.engine
+                $0.snippet = final
+            }
         }
     }
 
