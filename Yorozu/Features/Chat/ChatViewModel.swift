@@ -107,17 +107,30 @@ final class ChatViewModel {
 
         let params = GenerationParams(temperature: Float(temp), maxTokens: maxTokens)
         generationTask = Task { [engine] in
-            do {
-                for try await piece in engine.generate(turns: turns, params: params) {
-                    // 生成中に別の会話を開いた時に混ざらないように
-                    guard conversationID == convID, index < messages.count else { break }
-                    messages[index].content += piece
+            // 1トークンごとに画面を更新すると重いので、0.05秒ぶんまとめて流し込む
+            var buffer = ""
+            var lastFlush = CFAbsoluteTimeGetCurrent()
+            func flush() {
+                guard !buffer.isEmpty else { return }
+                // 生成中に別の会話を開いた時に混ざらないように
+                if conversationID == convID, index < messages.count {
+                    messages[index].content += buffer
                     let snippet = Self.tail(messages[index].content)
                     LiveActivityManager.shared.update { $0.snippet = snippet }
+                }
+                buffer = ""
+                lastFlush = CFAbsoluteTimeGetCurrent()
+            }
+            do {
+                for try await piece in engine.generate(turns: turns, params: params) {
+                    guard conversationID == convID else { break }
+                    buffer += piece
+                    if CFAbsoluteTimeGetCurrent() - lastFlush >= 0.05 { flush() }
                 }
             } catch {
                 errorText = error.localizedDescription
             }
+            flush()
             isGenerating = false
             UIApplication.shared.isIdleTimerDisabled = false
             if conversationID == convID { persist() }

@@ -8,11 +8,12 @@ struct SettingsView: View {
         return "v\(ver) (build \(build))"
     }
 
-    @AppStorage(Prefs.systemPrompt) private var systemPrompt = Prefs.defaultSystemPrompt
     @AppStorage(Prefs.temperature) private var temperature = 0.7
     @AppStorage(Prefs.maxTokens) private var maxTokens = 1024
     @AppStorage(Prefs.contextSize) private var contextSize = Prefs.defaultContextSize
     @AppStorage(Prefs.islandEnabled) private var islandEnabled = false
+    /// 許可状態の確認はシステムに問い合わせるので、描画のたびではなく表示時だけにする
+    @State private var activitiesAllowed = true
 
     var body: some View {
         NavigationStack {
@@ -27,7 +28,7 @@ struct SettingsView: View {
                 } header: {
                     Text("常駐モード")
                 } footer: {
-                    if LiveActivityManager.shared.isSystemAllowed {
+                    if activitiesAllowed {
                         Text("アプリを閉じてもダイナミックアイランドとロック画面に、モデルの状態・返答・ダウンロード進捗を出すだ。iOSの決まりで8時間で消えるけど、アプリを開けばまた出るだ。")
                     } else {
                         Text("iPhoneの「設定 → よろず → ライブアクティビティ」がオフになってるだ。オンにしてけろ。")
@@ -35,9 +36,7 @@ struct SettingsView: View {
                 }
 
                 Section("システムプロンプト") {
-                    TextEditor(text: $systemPrompt)
-                        .frame(minHeight: 120)
-                    Button("初期値に戻す") { systemPrompt = Prefs.defaultSystemPrompt }
+                    SystemPromptEditor()
                 }
                 Section("生成") {
                     VStack(alignment: .leading) {
@@ -59,7 +58,35 @@ struct SettingsView: View {
                     LabeledContent("バージョン", value: Self.versionString)
                 }
             }
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle("設定")
+            .onAppear { activitiesAllowed = LiveActivityManager.shared.isSystemAllowed }
         }
+    }
+}
+
+/// 打っている文字はこの中だけで持ち、保存は打ち終わって0.5秒後にまとめて行う
+/// (1文字ごとに保存して設定画面全体を描き直すと重いため)
+private struct SystemPromptEditor: View {
+    @State private var draft = UserDefaults.standard.string(forKey: Prefs.systemPrompt) ?? Prefs.defaultSystemPrompt
+    @State private var saveTask: Task<Void, Never>?
+
+    var body: some View {
+        TextEditor(text: $draft)
+            .frame(minHeight: 120)
+            .onChange(of: draft) {
+                saveTask?.cancel()
+                let text = draft
+                saveTask = Task {
+                    try? await Task.sleep(nanoseconds: 500_000_000)
+                    guard !Task.isCancelled else { return }
+                    UserDefaults.standard.set(text, forKey: Prefs.systemPrompt)
+                }
+            }
+            .onDisappear {
+                saveTask?.cancel()
+                UserDefaults.standard.set(draft, forKey: Prefs.systemPrompt)
+            }
+        Button("初期値に戻す") { draft = Prefs.defaultSystemPrompt }
     }
 }

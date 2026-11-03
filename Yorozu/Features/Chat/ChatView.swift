@@ -2,16 +2,14 @@ import SwiftUI
 
 struct ChatView: View {
     @Bindable var vm: ChatViewModel
-    @State private var input = ""
     @State private var showHistory = false
-    @FocusState private var focused: Bool
 
     var body: some View {
         NavigationStack {
             messageList
                 // 状態表示と入力欄は会話の上に浮かぶガラス。会話はその下に潜り込んでスクロールする
                 .safeAreaInset(edge: .top, spacing: 0) { statusBanner }
-                .safeAreaInset(edge: .bottom, spacing: 0) { inputBar }
+                .safeAreaInset(edge: .bottom, spacing: 0) { ChatInputBar(vm: vm) }
                 .navigationTitle(currentTitle)
                 .sheet(isPresented: $showHistory) {
                     NavigationStack {
@@ -84,7 +82,7 @@ struct ChatView: View {
                         .frame(maxWidth: .infinity)
                     }
                     ForEach(vm.messages) { msg in
-                        MessageBubble(message: msg).id(msg.id)
+                        MessageBubble(message: msg).equatable().id(msg.id)
                     }
                     if let err = vm.errorText {
                         Text(err).font(.footnote).foregroundStyle(.red)
@@ -102,19 +100,26 @@ struct ChatView: View {
             }
         }
     }
+}
+
+/// 入力欄。打っている文字はここだけで持つので、1文字ごとに会話リスト全体が描き直されない。
+struct ChatInputBar: View {
+    var vm: ChatViewModel
+    @State private var input = ""
+    @FocusState private var focused: Bool
 
     private var canSend: Bool {
         vm.isReady && !input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
-    private var inputBar: some View {
+    var body: some View {
         HStack(alignment: .bottom, spacing: 10) {
             TextField("メッセージ", text: $input, axis: .vertical)
                 .lineLimit(1...5)
                 .focused($focused)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 11)
-                .yorozuGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous), interactive: true)
+                .yorozuGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
 
             Group {
                 if vm.isGenerating {
@@ -142,7 +147,7 @@ struct ChatView: View {
     }
 }
 
-struct MessageBubble: View {
+struct MessageBubble: View, Equatable {
     let message: ChatMessage
 
     var body: some View {

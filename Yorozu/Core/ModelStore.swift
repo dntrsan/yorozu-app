@@ -126,7 +126,9 @@ final class ModelStore {
 
     fileprivate func handleProgress(_ name: String, _ p: Double) {
         // 中止直後に遅れて届いた進捗で復活させない
-        guard downloadProgress[name] != nil else { return }
+        guard let old = downloadProgress[name] else { return }
+        // 0.1%未満の変化では画面を更新しない
+        guard abs(p - old) >= 0.001 else { return }
         downloadProgress[name] = p
         LiveActivityManager.shared.update {
             $0.downloadName = name

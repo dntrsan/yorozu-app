@@ -50,6 +50,8 @@ struct RootView: View {
                 .tag(AppTab.settings)
         }
         .glassTabBar()
+        // 入力欄以外をタップしたらキーボードを下げる
+        .background(KeyboardDismissOnTap().frame(width: 0, height: 0))
         // モデルを選び直した/コンテキスト長を変えた時に読み込み直す
         .task(id: "\(store.selectedURL?.path ?? "")|\(contextSize)") {
             await chat.loadModel(at: store.selectedURL, contextSize: contextSize)

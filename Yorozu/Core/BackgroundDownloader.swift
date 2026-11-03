@@ -16,6 +16,8 @@ final class BackgroundDownloader: NSObject, URLSessionDownloadDelegate {
 
     private let lock = NSLock()
     private var reported = Set<Int>()
+    /// 進捗通知の間引き用(ファイル名 → 最後に知らせた時刻と値)
+    private var lastProgress: [String: (time: CFAbsoluteTime, value: Double)] = [:]
 
     lazy var session: URLSession = {
         let c = URLSessionConfiguration.background(withIdentifier: Self.identifier)
@@ -94,7 +96,17 @@ final class BackgroundDownloader: NSObject, URLSessionDownloadDelegate {
                     didWriteData bytesWritten: Int64, totalBytesWritten: Int64,
                     totalBytesExpectedToWrite: Int64) {
         guard let name = downloadTask.taskDescription, totalBytesExpectedToWrite > 0 else { return }
-        onProgress?(name, Double(totalBytesWritten) / Double(totalBytesExpectedToWrite))
+        let value = Double(totalBytesWritten) / Double(totalBytesExpectedToWrite)
+        // iOS は数十KBごと(速い回線だと毎秒数百回)に呼んでくる。そのまま画面に流すと
+        // メインスレッドが埋まって入力までカクつくので、0.3秒に1回までに間引く
+        let now = CFAbsoluteTimeGetCurrent()
+        lock.lock()
+        let last = lastProgress[name]
+        let shouldReport = last == nil || now - last!.time >= 0.3 || value >= 1
+        if shouldReport { lastProgress[name] = (now, value) }
+        lock.unlock()
+        guard shouldReport else { return }
+        onProgress?(name, value)
     }
 
     func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask,
