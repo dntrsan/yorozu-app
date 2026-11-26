@@ -37,25 +37,36 @@ final class ProfileStore {
         icon = (try? Data(contentsOf: Self.iconURL)).flatMap(UIImage.init(data:))
     }
 
-    /// 選んだ写真を真ん中で正方形に切り抜き、512px の JPEG にして保存する
-    @discardableResult
-    func setIcon(from data: Data) -> Bool {
-        guard let source = UIImage(data: data) else { return false }
-        let side: CGFloat = 512
+    /// 切り抜き前の元写真（「切り抜きを直す」用）。向きを直し、長辺 2048px までに縮めたもの
+    var original: UIImage? {
+        (try? Data(contentsOf: Self.originalURL)).flatMap(UIImage.init(data:))
+    }
+
+    /// 写真ライブラリのデータを、向きを直して扱いやすい大きさの UIImage にする
+    nonisolated static func normalized(from data: Data, maxSide: CGFloat = 2048) -> UIImage? {
+        guard let source = UIImage(data: data) else { return nil }
+        let s = source.size
+        let k = min(1, maxSide / max(s.width, s.height))
+        let size = CGSize(width: (s.width * k).rounded(), height: (s.height * k).rounded())
         let format = UIGraphicsImageRendererFormat()
         format.scale = 1
-        let squared = UIGraphicsImageRenderer(size: CGSize(width: side, height: side), format: format).image { _ in
-            let s = source.size
-            let scale = max(side / s.width, side / s.height)
-            let w = s.width * scale, h = s.height * scale
-            source.draw(in: CGRect(x: (side - w) / 2, y: (side - h) / 2, width: w, height: h))
+        return UIGraphicsImageRenderer(size: size, format: format).image { _ in
+            source.draw(in: CGRect(origin: .zero, size: size))
         }
-        guard let jpeg = squared.jpegData(compressionQuality: 0.85) else { return false }
+    }
+
+    /// 切り抜いた正方形を 512px の JPEG で保存する。元写真も一緒に残す
+    @discardableResult
+    func setIcon(cropped: UIImage, original: UIImage?) -> Bool {
+        guard let jpeg = cropped.jpegData(compressionQuality: 0.88) else { return false }
         do {
             try FileManager.default.createDirectory(at: Self.iconURL.deletingLastPathComponent(),
                                                     withIntermediateDirectories: true)
             try jpeg.write(to: Self.iconURL, options: .atomic)
-            icon = squared
+            if let original, let o = original.jpegData(compressionQuality: 0.85) {
+                try o.write(to: Self.originalURL, options: .atomic)
+            }
+            icon = cropped
             return true
         } catch {
             return false
@@ -64,7 +75,12 @@ final class ProfileStore {
 
     func removeIcon() {
         try? FileManager.default.removeItem(at: Self.iconURL)
+        try? FileManager.default.removeItem(at: Self.originalURL)
         icon = nil
+    }
+
+    private static var originalURL: URL {
+        iconURL.deletingLastPathComponent().appendingPathComponent("original.jpg")
     }
 
     private static var iconURL: URL {

@@ -47,6 +47,7 @@ struct ProfileIconPicker: View {
     @Bindable var profile: ProfileStore = .shared
     var size: CGFloat
     @State private var item: PhotosPickerItem?
+    @State private var cropping: CropSource?
 
     var body: some View {
         PhotosPicker(selection: $item, matching: .images) {
@@ -64,6 +65,11 @@ struct ProfileIconPicker: View {
         .buttonStyle(.plain)
         .contextMenu {
             if profile.icon != nil {
+                if let original = profile.original {
+                    Button("切り抜きを直す", systemImage: "crop") {
+                        cropping = CropSource(image: original)
+                    }
+                }
                 Button("アイコンを外す", systemImage: "trash", role: .destructive) {
                     profile.removeIcon()
                 }
@@ -72,10 +78,17 @@ struct ProfileIconPicker: View {
         .onChange(of: item) {
             guard let item else { return }
             Task {
-                if let data = try? await item.loadTransferable(type: Data.self) {
-                    profile.setIcon(from: data)
+                if let data = try? await item.loadTransferable(type: Data.self),
+                   let image = ProfileStore.normalized(from: data) {
+                    cropping = CropSource(image: image)
                 }
                 self.item = nil
+            }
+        }
+        .fullScreenCover(item: $cropping) { source in
+            IconCropView(image: source.image) { cropped in
+                profile.setIcon(cropped: cropped, original: source.image)
+                WafuHaptics.tap()
             }
         }
     }
