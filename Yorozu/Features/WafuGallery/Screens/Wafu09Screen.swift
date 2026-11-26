@@ -461,7 +461,7 @@ private struct Wafu09BrushDivider: View {
 // MARK: - メイン画面
 
 struct Wafu09Screen: View {
-    @State private var extState: Wafu09ExtState = .on
+    @State private var extState: Wafu09ExtState = .on { didSet { WafuHaptics.tap() } }
     @State private var glazePulse = false
     @State private var lightDrift = false
 

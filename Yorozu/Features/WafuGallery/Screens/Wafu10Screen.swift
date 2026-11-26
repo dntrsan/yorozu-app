@@ -553,7 +553,7 @@ private struct Wafu10WoodblockIcon: View {
 // MARK: - メイン画面
 
 struct Wafu10Screen: View {
-    @State private var extState: Wafu10ExtState = .on
+    @State private var extState: Wafu10ExtState = .on { didSet { WafuHaptics.tap() } }
     @State private var sealPulse = false
     @State private var ribbonSway = false
 

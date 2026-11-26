@@ -55,7 +55,7 @@ struct Wafu14Screen: View {
         }
     }
 
-    @State private var extState: ExtState = .on
+    @State private var extState: ExtState = .on { didSet { WafuHaptics.tap() } }
     @State private var neonBreath: Bool = false
 
     var body: some View {

@@ -84,7 +84,7 @@ struct Wafu15Screen: View {
         }
     }
 
-    @State private var extState: ExtState = .on
+    @State private var extState: ExtState = .on { didSet { WafuHaptics.tap() } }
     @State private var statusPulse: Bool = false
     @State private var highlightFloat: Bool = false
 

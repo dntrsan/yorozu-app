@@ -881,7 +881,7 @@ struct WafuPartsPatternsGallery: View {
                 Text("密度")
                     .font(.custom("HiraMinProN-W6", size: 12))
                     .foregroundStyle(fg)
-                Slider(value: $density, in: 0.65...1.75, step: 0.05)
+                Slider(value: $density.wafuHaptic(), in: 0.65...1.75, step: 0.05)
                     .tint(isDarkChrome ? WPPatternPalette.asagiNezu : WPPatternPalette.aiNezu)
                 Text(String(format: "%.2fx", density))
                     .font(.system(size: 12, weight: .medium, design: .monospaced))
@@ -893,7 +893,7 @@ struct WafuPartsPatternsGallery: View {
                     .font(.custom("HiraMinProN-W6", size: 12))
                     .foregroundStyle(fg)
                 Spacer()
-                Picker("紙面", selection: $isDarkChrome) {
+                Picker("紙面", selection: $isDarkChrome.wafuHaptic()) {
                     Text("白練（明）").tag(false)
                     Text("墨色（暗）").tag(true)
                 }

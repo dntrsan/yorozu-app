@@ -202,7 +202,7 @@ struct WPCardFoldedLetter: View {
 }
 
 struct WafuPartsCardsGallery: View {
-    @State private var state: WPCardExtState = .on
+    @State private var state: WPCardExtState = .on { didSet { WafuHaptics.tap() } }
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {

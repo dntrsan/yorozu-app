@@ -151,7 +151,7 @@ struct Wafu11Screen: View {
         }
     }
 
-    @State private var extState: ExtState = .on
+    @State private var extState: ExtState = .on { didSet { WafuHaptics.tap() } }
     @State private var isPulsing: Bool = false
 
     var body: some View {

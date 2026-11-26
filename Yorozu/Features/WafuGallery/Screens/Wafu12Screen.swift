@@ -166,7 +166,7 @@ struct Wafu12Screen: View {
         }
     }
 
-    @State private var extState: ExtState = .on
+    @State private var extState: ExtState = .on { didSet { WafuHaptics.tap() } }
     @State private var duskBreathing: Bool = false
     @State private var statusPulse: Bool = false
 

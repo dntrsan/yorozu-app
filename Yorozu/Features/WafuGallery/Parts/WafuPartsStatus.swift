@@ -923,7 +923,7 @@ struct WPStatusTamaIndicator: View {
 // MARK: - 見本帳 Gallery View
 
 struct WafuPartsStatusGallery: View {
-    @State private var state: WPStatusState = .on
+    @State private var state: WPStatusState = .on { didSet { WafuHaptics.tap() } }
     @State private var isDarkChrome: Bool = false
 
     init() {}
@@ -1000,7 +1000,7 @@ struct WafuPartsStatusGallery: View {
 
     private func controlBar(fg: Color, sub: Color, line: Color) -> some View {
         VStack(spacing: 10) {
-            Picker("状態", selection: $state) {
+            Picker("状態", selection: $state.wafuHaptic()) {
                 Text("オン").tag(WPStatusState.on)
                 Text("オフ").tag(WPStatusState.off)
                 Text("確認中").tag(WPStatusState.checking)
@@ -1012,7 +1012,7 @@ struct WafuPartsStatusGallery: View {
                     .font(.custom("HiraMinProN-W6", size: 12))
                     .foregroundStyle(fg)
                 Spacer()
-                Picker("紙面", selection: $isDarkChrome) {
+                Picker("紙面", selection: $isDarkChrome.wafuHaptic()) {
                     Text("白練（明）").tag(false)
                     Text("墨色（暗）").tag(true)
                 }

@@ -13,8 +13,7 @@ private enum Wafu06Palette {
 
 struct Wafu06Screen: View {
     enum ExtState { case on, off, checking }
-    @State private var extensionState: ExtState = .on
-
+    @State private var extensionState: ExtState = .on { didSet { WafuHaptics.tap() } }
     private var statusTitle: String {
         switch extensionState {
         case .on: return "よみびの灯りが、つきました"

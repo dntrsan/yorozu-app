@@ -12,8 +12,7 @@ private enum Wafu08Palette {
 
 struct Wafu08Screen: View {
     private enum ExtState { case on, off, checking }
-    @State private var state: ExtState = .on
-
+    @State private var state: ExtState = .on { didSet { WafuHaptics.tap() } }
     private var stateTitle: String {
         switch state {
         case .on: return "拡張はオンです"

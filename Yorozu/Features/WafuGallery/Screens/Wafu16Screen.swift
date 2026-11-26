@@ -68,7 +68,7 @@ struct Wafu16Screen: View {
         }
     }
 
-    @State private var extState: ExtState = .on
+    @State private var extState: ExtState = .on { didSet { WafuHaptics.tap() } }
     @State private var stampBreath: Bool = false
 
     private static let safariURL = URL(string: "https://www.apple.com/jp/safari/")!

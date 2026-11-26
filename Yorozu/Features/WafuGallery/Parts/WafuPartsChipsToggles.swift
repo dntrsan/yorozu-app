@@ -617,8 +617,7 @@ struct WPCTSorobanToggleStyle: ToggleStyle {
 
 struct WafuPartsChipsTogglesGallery: View {
     @State private var isDarkChrome: Bool = false
-    @State private var selectedTag: String = "Safari"
-
+    @State private var selectedTag: String = "Safari" { didSet { WafuHaptics.select() } }
     @State private var shojiOn: Bool = true
     @State private var kifudaOn: Bool = true
     @State private var mizuhikiOn: Bool = false
@@ -645,7 +644,7 @@ struct WafuPartsChipsTogglesGallery: View {
                         .font(.custom("HiraMinProN-W6", size: 12))
                         .foregroundStyle(fg)
                     Spacer()
-                    Picker("紙面", selection: $isDarkChrome) {
+                    Picker("紙面", selection: $isDarkChrome.wafuHaptic()) {
                         Text("白練（明）").tag(false)
                         Text("墨色（暗）").tag(true)
                     }
@@ -717,28 +716,28 @@ struct WafuPartsChipsTogglesGallery: View {
 
                 VStack(spacing: 12) {
                     toggleCard(name: "五、障子戸", reading: "しょうじど", desc: "組子格子の障子が敷居の上をすっと滑る", card: card, fg: fg, sub: sub, line: line) {
-                        Toggle(isOn: $shojiOn) {
+                        Toggle(isOn: $shojiOn.wafuHaptic()) {
                             toggleLabel("本文を明朝体で組む", note: "よみびの基本整形", fg: fg, sub: sub)
                         }
                         .toggleStyle(WPCTShojiToggleStyle())
                     }
 
                     toggleCard(name: "六、表裏木札", reading: "おもてうらきふだ", desc: "「入／切」を刻んだ檜の木札スイッチ", card: card, fg: fg, sub: sub, line: line) {
-                        Toggle(isOn: $kifudaOn) {
+                        Toggle(isOn: $kifudaOn.wafuHaptic()) {
                             toggleLabel("行間と文字サイズを端末に合わせる", note: "読みやすい幅へ自動調整", fg: fg, sub: sub)
                         }
                         .toggleStyle(WPCTKifudaToggleStyle())
                     }
 
                     toggleCard(name: "七、水引結び", reading: "みずひき", desc: "紅白二本の水引紐を輪結びのつまみが滑る", card: card, fg: fg, sub: sub, line: line) {
-                        Toggle(isOn: $mizuhikiOn) {
+                        Toggle(isOn: $mizuhikiOn.wafuHaptic()) {
                             toggleLabel("読んだ位置を覚えておく", note: "次回の再訪時に続きから", fg: fg, sub: sub)
                         }
                         .toggleStyle(WPCTMizuhikiToggleStyle())
                     }
 
                     toggleCard(name: "八、算盤玉", reading: "そろばんだま", desc: "黒檀枠と竹軸の上を算盤玉が小気味よく動く", card: card, fg: fg, sub: sub, line: line) {
-                        Toggle(isOn: $sorobanOn) {
+                        Toggle(isOn: $sorobanOn.wafuHaptic()) {
                             toggleLabel("Safari 機能拡張を有効にする", note: "アドレスバーの「ぁあ」から起動", fg: fg, sub: sub)
                         }
                         .toggleStyle(WPCTSorobanToggleStyle())

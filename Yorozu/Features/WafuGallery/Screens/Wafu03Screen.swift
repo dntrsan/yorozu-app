@@ -3,8 +3,7 @@ import SwiftUI
 // iOS 18 / Standalone screen. The state is a demonstration, not a Safari query.
 struct Wafu03Screen: View {
     enum ExtState { case on, off, checking }
-    @State private var extState: ExtState = .on
-
+    @State private var extState: ExtState = .on { didSet { WafuHaptics.tap() } }
     private var stateTitle: String {
         switch extState {
         case .on: "よみびはオンです"

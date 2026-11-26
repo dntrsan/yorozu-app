@@ -806,7 +806,7 @@ struct WafuPartsHeroMarksGallery: View {
                     .font(.custom("HiraMinProN-W6", size: 12))
                     .foregroundStyle(fg)
                 Spacer()
-                Picker("寸法", selection: $markSize) {
+                Picker("寸法", selection: $markSize.wafuHaptic()) {
                     Text("小 52").tag(CGFloat(52))
                     Text("中 68").tag(CGFloat(68))
                     Text("大 84").tag(CGFloat(84))
@@ -820,7 +820,7 @@ struct WafuPartsHeroMarksGallery: View {
                     .font(.custom("HiraMinProN-W6", size: 12))
                     .foregroundStyle(fg)
                 Spacer()
-                Picker("紙面", selection: $isDarkChrome) {
+                Picker("紙面", selection: $isDarkChrome.wafuHaptic()) {
                     Text("白練（明）").tag(false)
                     Text("墨色（暗）").tag(true)
                 }

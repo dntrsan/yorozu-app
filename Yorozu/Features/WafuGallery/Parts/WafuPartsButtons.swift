@@ -146,7 +146,7 @@ struct WPButtonBookmark: ButtonStyle {
 }
 
 struct WafuPartsButtonsGallery: View {
-    @State private var feedback = "押して、手ざわりを確かめる"
+    @State private var feedback = "押して、手ざわりを確かめる" { didSet { WafuHaptics.tap() } }
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 26) {
