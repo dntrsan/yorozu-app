@@ -27,6 +27,8 @@ struct HomeView: View {
                 switch route {
                 case .history:
                     HistoryView(vm: chat) { tab = .chat }
+                case .wafuGallery:
+                    WafuGalleryView()
                 }
             }
         }

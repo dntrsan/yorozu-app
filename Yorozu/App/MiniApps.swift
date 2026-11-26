@@ -2,6 +2,7 @@ import SwiftUI
 
 enum HomeRoute: Hashable {
     case history
+    case wafuGallery
 }
 
 /// ホームに並ぶ「よろず内のアプリ」。新しい機能を作ったらここに1行足す。
@@ -22,5 +23,6 @@ struct MiniApp: Identifiable {
         MiniApp(id: "history", title: "会話履歴", symbol: "clock.arrow.circlepath", color: .indigo, destination: .route(.history)),
         MiniApp(id: "models", title: "モデル", symbol: "externaldrive.fill", color: .blue, destination: .tab(.models)),
         MiniApp(id: "settings", title: "設定", symbol: "gearshape.fill", color: .gray, destination: .tab(.settings)),
+        MiniApp(id: "wafu", title: "和風見本帳", symbol: "paintpalette.fill", color: .red, destination: .route(.wafuGallery)),
     ]
 }
