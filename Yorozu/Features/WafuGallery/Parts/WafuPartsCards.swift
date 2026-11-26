@@ -239,7 +239,7 @@ struct WafuPartsCardsGallery: View {
             }.padding(20).frame(maxWidth: 390)
         }.background(WPCardColor(0xEEEEE6)).foregroundStyle(WPCardColor(0x393C32)).preferredColorScheme(.light)
     }
-    private func specimen<V: View>(_ title: String, _ detail: String, @ViewBuilder content: (Bool) -> V) -> some View {
+    private func specimen<V: View>(_ title: String, _ detail: String, @ViewBuilder content: @escaping (Bool) -> V) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title).font(.custom("HiraMinProN-W6", size: 19))
             Text(detail).font(.system(size: 12)).foregroundStyle(.secondary)

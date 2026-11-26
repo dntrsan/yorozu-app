@@ -184,7 +184,7 @@ struct WafuPartsButtonsGallery: View {
             }.padding(20).frame(maxWidth: 390)
         }.background(WPButtonColor(0xF5F1E8)).foregroundStyle(WPButtonColor(0x343936)).preferredColorScheme(.light)
     }
-    private func specimen<V: View>(_ name: String, _ note: String, @ViewBuilder content: (Bool) -> V) -> some View {
+    private func specimen<V: View>(_ name: String, _ note: String, @ViewBuilder content: @escaping (Bool) -> V) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(name).font(.custom("HiraMinProN-W6", size: 19))
             Text(note).font(.system(size: 12)).foregroundStyle(.secondary)

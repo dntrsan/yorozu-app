@@ -472,7 +472,7 @@ struct WafuPartsHeadingsGallery: View {
         .preferredColorScheme(.light)
     }
 
-    private func specimen<V: View>(_ title: String, _ note: String, @ViewBuilder content: (Bool) -> V) -> some View {
+    private func specimen<V: View>(_ title: String, _ note: String, @ViewBuilder content: @escaping (Bool) -> V) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
                 .font(.custom("HiraMinProN-W6", size: 19))

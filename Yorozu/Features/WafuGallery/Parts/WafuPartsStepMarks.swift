@@ -179,7 +179,7 @@ struct WafuPartsStepMarksGallery: View {
             }.padding(20).frame(maxWidth: 390)
         }.background(WPStepColor(0xF2EFEB)).foregroundStyle(WPStepColor(0x343D42)).preferredColorScheme(.light)
     }
-    private func specimen<Mark: View>(_ title: String, _ note: String, @ViewBuilder mark: (Int, Bool) -> Mark) -> some View {
+    private func specimen<Mark: View>(_ title: String, _ note: String, @ViewBuilder mark: @escaping (Int, Bool) -> Mark) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title).font(.custom("HiraMinProN-W6", size: 19))
             Text(note).font(.system(size: 12)).foregroundStyle(.secondary)
