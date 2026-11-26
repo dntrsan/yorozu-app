@@ -15,12 +15,12 @@ extension View {
         #endif
     }
 
-    /// スクロールするとタブバーが小さくなる(iOS 26)
+    /// スクロールするとタブバーが小さくなる(iOS 26)。minimize が false の間は小さくしない
     @ViewBuilder
-    func glassTabBar() -> some View {
+    func glassTabBar(minimize: Bool = true) -> some View {
         #if compiler(>=6.2)
         if #available(iOS 26.0, *) {
-            self.tabBarMinimizeBehavior(.onScrollDown)
+            self.tabBarMinimizeBehavior(minimize ? .onScrollDown : .never)
         } else {
             self
         }

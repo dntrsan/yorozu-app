@@ -123,7 +123,7 @@ struct WafuGalleryView: View {
                 .toolbar(.hidden, for: .tabBar)
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
-                        MakerBadge(maker: entry.maker, showModel: true)
+                        MakerBadge(maker: entry.maker, showModel: true, plain: true)
                     }
                 }
                 .onAppear { WafuHaptics.soft() }
@@ -158,19 +158,32 @@ struct WafuGalleryView: View {
 private struct MakerBadge: View {
     let maker: WafuGalleryView.Maker
     let showModel: Bool
+    /// ツールバー用。iOS 26 はツールバーの項目を自前のガラスで包むので、こちらの枠は付けない
+    var plain = false
 
     var body: some View {
+        if plain {
+            label
+                .padding(.horizontal, 4)
+                .fixedSize()
+        } else {
+            label
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(maker.color.opacity(0.12), in: Capsule())
+                .overlay(Capsule().strokeBorder(maker.color.opacity(0.35), lineWidth: 1))
+        }
+    }
+
+    private var label: some View {
         HStack(spacing: 4) {
             Image(systemName: maker.symbol)
-                .font(.system(size: 9, weight: .bold))
+                .font(.system(size: plain ? 11 : 9, weight: .bold))
             Text(showModel ? "\(maker.name) · \(maker.model)" : maker.name)
-                .font(.system(size: 11, weight: .semibold))
+                .font(.system(size: plain ? 13 : 11, weight: .semibold))
         }
         .foregroundStyle(maker.color)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(maker.color.opacity(0.12), in: Capsule())
-        .overlay(Capsule().strokeBorder(maker.color.opacity(0.35), lineWidth: 1))
+        .accessibilityElement(children: .ignore)
         .accessibilityLabel("作成: \(maker.name) \(maker.model)")
     }
 }

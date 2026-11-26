@@ -15,10 +15,30 @@ struct SettingsView: View {
     @AppStorage(Prefs.keepModelInBackground) private var keepModelInBackground = false
     /// 許可状態の確認はシステムに問い合わせるので、描画のたびではなく表示時だけにする
     @State private var activitiesAllowed = true
+    @Bindable private var profile = ProfileStore.shared
 
     var body: some View {
         NavigationStack {
             Form {
+                Section {
+                    HStack(spacing: 14) {
+                        ProfileIconPicker(profile: profile, size: 60)
+                        VStack(alignment: .leading, spacing: 4) {
+                            TextField("呼び方（任意）", text: $profile.name)
+                                .textContentType(.nickname)
+                                .font(.headline)
+                            Text(profile.icon == nil ? "アイコンをタップして写真を選ぶ" : "長押しでアイコンを外せます")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                } header: {
+                    Text("プロフィール")
+                } footer: {
+                    Text("ホームのあいさつで使うだ。この端末の中にだけ保存するだ。")
+                }
+
                 Section {
                     Toggle(isOn: $islandEnabled) {
                         Label("ダイナミックアイランド常駐", systemImage: "capsule.inset.filled")
@@ -58,6 +78,7 @@ struct SettingsView: View {
                 }
                 Section("このアプリについて") {
                     LabeledContent("バージョン", value: Self.versionString)
+                    LabeledContent("作った人", value: AppCredit.author)
                 }
             }
             .scrollDismissesKeyboard(.interactively)

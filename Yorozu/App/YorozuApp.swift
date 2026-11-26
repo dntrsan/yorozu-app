@@ -31,6 +31,7 @@ struct RootView: View {
     @State private var chat = ChatViewModel()
     @State private var tab: AppTab = .home
     private let store = ModelStore.shared
+    @Bindable private var profile = ProfileStore.shared
     @AppStorage(Prefs.contextSize) private var contextSize = Prefs.defaultContextSize
     @Environment(\.scenePhase) private var scenePhase
 
@@ -49,7 +50,14 @@ struct RootView: View {
                 .tabItem { Label("設定", systemImage: "gearshape") }
                 .tag(AppTab.settings)
         }
-        .glassTabBar()
+        // ホームではタブバーを小さくしない（他のタブではスクロールで小さくなる）
+        .glassTabBar(minimize: tab != .home)
+        // 初回だけ「はじめまして」（呼び方とアイコン、どちらも任意）
+        .sheet(isPresented: Binding(get: { !profile.hasOnboarded },
+                                    set: { if !$0 { profile.hasOnboarded = true } })) {
+            OnboardingView(profile: profile) { profile.hasOnboarded = true }
+                .presentationDetents([.large])
+        }
         // 入力欄以外をタップしたらキーボードを下げる
         .background(KeyboardDismissOnTap().frame(width: 0, height: 0))
         // 使うモデルを決める(読み込みはチャットを開いた時)

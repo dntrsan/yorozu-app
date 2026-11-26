@@ -6,7 +6,10 @@ struct HomeView: View {
     @Binding var tab: AppTab
 
     private let conversations = ConversationStore.shared
+    private let profile = ProfileStore.shared
     @State private var path = NavigationPath()
+    /// あいさつの型。描き直しのたびに変わらないよう、ホームを開いた時だけ選び直す
+    @State private var greetingTemplate = Greeting.pick()
 
     private let columns = [GridItem(.adaptive(minimum: 72, maximum: 96), spacing: 16)]
 
@@ -23,6 +26,7 @@ struct HomeView: View {
             }
             .navigationTitle("ホーム")
             .navigationBarTitleDisplayMode(.inline)
+            .onAppear { greetingTemplate = Greeting.pick() }
             .navigationDestination(for: HomeRoute.self) { route in
                 switch route {
                 case .history:
@@ -36,19 +40,18 @@ struct HomeView: View {
 
     // MARK: - Header
 
-    private var greeting: String {
-        switch Calendar.current.component(.hour, from: Date()) {
-        case 4..<11: return "おはよう"
-        case 11..<18: return "こんにちは"
-        default: return "こんばんは"
-        }
-    }
-
     private var header: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(Date(), format: .dateTime.month().day().weekday(.wide))
-                .font(.subheadline).foregroundStyle(.secondary)
-            Text("\(greeting)、よろずだべ").font(.largeTitle.bold())
+        HStack(alignment: .center, spacing: 14) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(Date(), format: .dateTime.month().day().weekday(.wide))
+                    .font(.subheadline).foregroundStyle(.secondary)
+                Text(Greeting.render(greetingTemplate, name: profile.displayName))
+                    .font(.largeTitle.bold())
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.6)
+            }
+            Spacer(minLength: 0)
+            ProfileIconPicker(profile: profile, size: 56)
         }
     }
 
